@@ -15,13 +15,13 @@ const client = new Client({
 
 const DB_PATH = path.join(__dirname, 'mod_data.json');
 
-// Base de Datos Local Integrada (Soporte completo para todo tipo de logs por usuario)
+// Base de Datos Local Integrada
 function readDB() {
     if (!fs.existsSync(DB_PATH)) {
         fs.writeFileSync(DB_PATH, JSON.stringify({ userLogs: {}, logsChannels: {}, stats: { totalScamsBlocked: 0, totalWarnsGiven: 0 } }, null, 2));
     }
     const data = JSON.parse(fs.readFileSync(DB_PATH, 'utf-8'));
-    if (!data.userLogs) data.userLogs = {}; // Asegurar estructura nueva
+    if (!data.userLogs) data.userLogs = {};
     if (!data.logsChannels) data.logsChannels = {}; 
     return data;
 }
@@ -30,14 +30,13 @@ function writeDB(data) {
     fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2));
 }
 
-// Función para registrar cualquier acción en la base de datos de un usuario
 function addModLog(guildId, userId, tipo, razon, moderador) {
     const db = readDB();
     if (!db.userLogs[guildId]) db.userLogs[guildId] = {};
     if (!db.userLogs[guildId][userId]) db.userLogs[guildId][userId] = [];
     
     db.userLogs[guildId][userId].push({
-        tipo: tipo.toUpperCase(), // WARN, KICK, BAN, UNBAN
+        tipo: tipo.toUpperCase(),
         razon,
         fecha: new Date().toLocaleDateString(),
         por: moderador
@@ -45,7 +44,6 @@ function addModLog(guildId, userId, tipo, razon, moderador) {
     writeDB(db);
 }
 
-// Filtro Anti-Scam Automático
 const SCAM_KEYWORDS = ['discord-nitro', 'free-nitro', 'nitro-gift', 'dlscord', 'steeam', 'giveaway-nitro'];
 
 async function sendLog(guild, embed) {
@@ -61,14 +59,13 @@ async function sendLog(guild, embed) {
 // --- REGISTRO DE COMANDOS DE BARRA ---
 const commands = [
     new SlashCommandBuilder().setName('ping').setDescription('Muestra la latencia del sistema AEGIS 🪄'),
+    new SlashCommandBuilder().setName('help').setDescription('Muestra el menú de ayuda y comandos de AEGIS 🪄'),
     new SlashCommandBuilder().setName('clear').setDescription('Borra mensajes (1-100)').addIntegerOption(opt => opt.setName('cantidad').setDescription('Mensajes a borrar').setRequired(true)),
     new SlashCommandBuilder().setName('warn').setDescription('Amonesta a un usuario').addUserOption(opt => opt.setName('usuario').setDescription('Usuario a amonestar').setRequired(true)).addStringOption(opt => opt.setName('razon').setDescription('Razón').setRequired(true)),
     new SlashCommandBuilder().setName('unwarn').setDescription('Elimina la última advertencia de un usuario').addUserOption(opt => opt.setName('usuario').setDescription('Usuario a perdonar').setRequired(true)),
     new SlashCommandBuilder().setName('kick').setDescription('Expulsa a un miembro').addUserOption(opt => opt.setName('usuario').setDescription('Usuario a expulsar').setRequired(true)).addStringOption(opt => opt.setName('razon').setDescription('Razón')),
     new SlashCommandBuilder().setName('ban').setDescription('Banea a un miembro').addUserOption(opt => opt.setName('usuario').setDescription('Usuario a banear').setRequired(true)).addStringOption(opt => opt.setName('razon').setDescription('Razón')),
     new SlashCommandBuilder().setName('unban').setDescription('Desbanea a un usuario por su ID').addStringOption(opt => opt.setName('userid').setDescription('ID de Discord del usuario').setRequired(true)).addStringOption(opt => opt.setName('razon').setDescription('Razón')),
-    
-    // El nuevo comando solicitado 🔥
     new SlashCommandBuilder().setName('modlogs').setDescription('Muestra el historial completo de sanciones de un usuario').addUserOption(opt => opt.setName('usuario').setDescription('Usuario a consultar').setRequired(true)),
     
     new SlashCommandBuilder()
@@ -130,12 +127,33 @@ client.on('interactionCreate', async interaction => {
     if (!interaction.isChatInputCommand()) return;
     const { commandName, guildId, member, guild } = interaction;
 
-    if (commandName !== 'ping' && !member.permissions.has('ModerateMembers') && !member.permissions.has('Administrator')) {
-        return interaction.reply({ content: '❌ No tienes permisos para usar AEGIS 🪄.', ephemeral: true });
+    // Permitir /ping y /help a todos, los demás requieren permisos de moderación
+    if (commandName !== 'ping' && commandName !== 'help' && !member.permissions.has('ModerateMembers') && !member.permissions.has('Administrator')) {
+        return interaction.reply({ content: '❌ No tienes permisos para usar la moderación de AEGIS 🪄.', ephemeral: true });
     }
 
     if (commandName === 'ping') {
         return interaction.reply({ content: `📡 Latencia de respuesta de AEGIS 🪄: **${client.ws.ping}ms**`, ephemeral: true });
+    }
+
+    // --- NUEVO COMANDO /HELP 🔥 ---
+    if (commandName === 'help') {
+        const helpEmbed = new EmbedBuilder()
+            .setTitle('🪄 Panel de Ayuda — Sistema de Seguridad AEGIS')
+            .setDescription('Hola, soy AEGIS. Estoy diseñado para proteger y moderar este servidor de forma automática 24/7.')
+            .setColor('#6366f1')
+            .setThumbnail(client.user.displayAvatarURL())
+            .addFields(
+                { name: '🌐 Utilidad General', value: '`/help` - Muestra este panel.\n`/ping` - Revisa la latencia del bot.' },
+                { name: '🛡️ Moderación Básica', value: '`/clear [1-100]` - Borra mensajes masivos.\n`/modlogs [@usuario]` - Revisa el expediente unificado de sanciones de un miembro.' },
+                { name: '⚠️ Sistema de Sanciones', value: '`/warn [@usuario] [razón]` - Registra una advertencia.\n`/unwarn [@usuario]` - Elimina la última advertencia.\n`/kick [@usuario] [razón]` - Expulsa al miembro.\n`/ban [@usuario] [razón]` - Aplica un baneo definitivo.\n`/unban [ID-Usuario] [razón]` - Remueve el baneo usando su ID.' },
+                { name: '⚙️ Configuración Avanzada', value: '`/logs establecer [#canal]` - Elige el canal para los registros en vivo.\n`/logs eliminar` - Desactiva el canal de registros.' },
+                { name: '⚡ Protección Automatizada', value: '• **Filtro Anti-Scam:** Borra automáticamente enlaces maliciosos de "Free Nitro", genera alertas en el chat y envía el reporte detallado al canal de logs.' }
+            )
+            .setFooter({ text: 'AEGIS 🪄 — Seguridad y Moderación Eficiente', iconURL: client.user.displayAvatarURL() })
+            .setTimestamp();
+
+        return interaction.reply({ embeds: [helpEmbed] });
     }
 
     if (commandName === 'logs') {
@@ -173,7 +191,6 @@ client.on('interactionCreate', async interaction => {
         const target = interaction.options.getUser('usuario');
         const razon = interaction.options.getString('razon');
         
-        // Guardar acción en el historial unificado
         addModLog(guildId, target.id, 'WARN', razon, interaction.user.tag);
         
         const db = readDB();
@@ -190,7 +207,6 @@ client.on('interactionCreate', async interaction => {
         const target = interaction.options.getUser('usuario');
         const db = readDB();
         
-        // Buscar las advertencias en el nuevo formato de logs filtrando por tipo WARN
         const logs = db.userLogs[guildId]?.[target.id] || [];
         const warnIndexes = logs.map((l, idx) => l.tipo === 'WARN' ? idx : null).filter(v => v !== null);
 
@@ -198,7 +214,6 @@ client.on('interactionCreate', async interaction => {
             return interaction.reply({ content: `❌ ${target.username} no tiene advertencias activas para remover.`, ephemeral: true });
         }
         
-        // Remover el último "WARN" del array
         const lastWarnIdx = warnIndexes[warnIndexes.length - 1];
         const removida = logs.splice(lastWarnIdx, 1)[0];
         writeDB(db);
@@ -256,45 +271,6 @@ client.on('interactionCreate', async interaction => {
         } catch (err) {
             return interaction.reply({ content: '❌ No se pudo desbanear a ese usuario. Verifica la ID.', ephemeral: true });
         }
-    }
-
-    // --- NUEVO COMANDO /MODLOGS 🔥 ---
-    if (commandName === 'modlogs') {
-        const target = interaction.options.getUser('usuario');
-        const db = readDB();
-        const logs = db.userLogs[guildId]?.[target.id] || [];
-
-        if (logs.length === 0) {
-            return interaction.reply({ content: `✅ **${target.username}** tiene un expediente limpio. No hay registros de sanciones.`, ephemeral: true });
-        }
-
-        // Contadores rápidos
-        const warns = logs.filter(l => l.tipo === 'WARN').length;
-        const kicks = logs.filter(l => l.tipo === 'KICK').length;
-        const bans = logs.filter(l => l.tipo === 'BAN').length;
-
-        const embed = new EmbedBuilder()
-            .setTitle(`📋 Expediente de Moderación - ${target.username}`)
-            .setDescription(`**Resumen de Historial:**\n⚠️ Warns: \`${warns}\` | 👢 Kicks: \`${kicks}\` | 🔨 Bans: \`${bans}\``)
-            .setColor('#6366f1')
-            .setThumbnail(target.displayAvatarURL({ dynamic: true }))
-            .setTimestamp();
-
-        // Mostrar los últimos 10 incidentes para evitar sobrecargar el mensaje de texto de Discord
-        const recentLogs = logs.slice(-10).reverse();
-        recentLogs.forEach((log, i) => {
-            let emoji = '⚠️';
-            if (log.tipo === 'KICK') emoji = '👢';
-            if (log.tipo === 'BAN') emoji = '🔨';
-            if (log.tipo === 'UNBAN') emoji = '🔓';
-
-            embed.addFields({
-                name: `${emoji} [${log.tipo}] — ${log.fecha}`,
-                value: `**Razón:** ${log.razon}\n**Moderador:** ${log.por}`
-            });
-        });
-
-        return interaction.reply({ embeds: [embed] });
     }
 });
 
