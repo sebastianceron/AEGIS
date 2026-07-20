@@ -1,9 +1,16 @@
+// --- SERVIDOR HTTP PARA UPTRIMEROBOT & RENDER 24/7 ---
+const express = require('express');
+const app = express();
+
+app.get('/', (req, res) => res.send('AEGIS 🪄 está activo 24/7!'));
+app.listen(process.env.PORT || 3000, () => console.log('[HTTP] Servidor web listo para UptimeRobot 🟩'));
+
+// --- DEPENDENCIAS Y CONFIGURACIÓN DEL BOT ---
 require('dotenv').config();
 const { Client, GatewayIntentBits, EmbedBuilder, REST, Routes, SlashCommandBuilder, ChannelType } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 
-// Inicializar Bot
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -30,6 +37,7 @@ function writeDB(data) {
     fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2));
 }
 
+// Función auxiliar para registrar sanciones por usuario
 function addModLog(guildId, userId, tipo, razon, moderador) {
     const db = readDB();
     if (!db.userLogs[guildId]) db.userLogs[guildId] = {};
@@ -44,8 +52,10 @@ function addModLog(guildId, userId, tipo, razon, moderador) {
     writeDB(db);
 }
 
+// Filtro Anti-Scam Automático
 const SCAM_KEYWORDS = ['discord-nitro', 'free-nitro', 'nitro-gift', 'dlscord', 'steeam', 'giveaway-nitro'];
 
+// Función para enviar mensajes al canal de logs del servidor
 async function sendLog(guild, embed) {
     const db = readDB();
     const channelId = db.logsChannels[guild.id];
@@ -93,12 +103,13 @@ async function deployCommands() {
     }
 }
 
+// --- EVENTOS ---
 client.once('ready', () => {
     console.log(`[DISCORD] ¡AEGIS 🪄 online como ${client.user.tag}! 🟩`);
     deployCommands();
 });
 
-// Filtro Anti-Scam
+// Filtro Anti-Scam en vivo
 client.on('messageCreate', async message => {
     if (message.author.bot || !message.guild) return;
     const contentLower = message.content.toLowerCase();
@@ -122,12 +133,12 @@ client.on('messageCreate', async message => {
     }
 });
 
-// Ejecución de Comandos Slash
+// --- EJECUCIÓN DE COMANDOS SLASH ---
 client.on('interactionCreate', async interaction => {
     if (!interaction.isChatInputCommand()) return;
     const { commandName, guildId, member, guild } = interaction;
 
-    // Permitir /ping y /help a todos, los demás requieren permisos de moderación
+    // Control de Permisos
     if (commandName !== 'ping' && commandName !== 'help' && !member.permissions.has('ModerateMembers') && !member.permissions.has('Administrator')) {
         return interaction.reply({ content: '❌ No tienes permisos para usar la moderación de AEGIS 🪄.', ephemeral: true });
     }
@@ -136,7 +147,6 @@ client.on('interactionCreate', async interaction => {
         return interaction.reply({ content: `📡 Latencia de respuesta de AEGIS 🪄: **${client.ws.ping}ms**`, ephemeral: true });
     }
 
-    // --- NUEVO COMANDO /HELP 🔥 ---
     if (commandName === 'help') {
         const helpEmbed = new EmbedBuilder()
             .setTitle('🪄 Panel de Ayuda — Sistema de Seguridad AEGIS')
@@ -271,6 +281,42 @@ client.on('interactionCreate', async interaction => {
         } catch (err) {
             return interaction.reply({ content: '❌ No se pudo desbanear a ese usuario. Verifica la ID.', ephemeral: true });
         }
+    }
+
+    if (commandName === 'modlogs') {
+        const target = interaction.options.getUser('usuario');
+        const db = readDB();
+        const logs = db.userLogs[guildId]?.[target.id] || [];
+
+        if (logs.length === 0) {
+            return interaction.reply({ content: `✅ **${target.username}** tiene un expediente limpio. No hay registros de sanciones.`, ephemeral: true });
+        }
+
+        const warns = logs.filter(l => l.tipo === 'WARN').length;
+        const kicks = logs.filter(l => l.tipo === 'KICK').length;
+        const bans = logs.filter(l => l.tipo === 'BAN').length;
+
+        const embed = new EmbedBuilder()
+            .setTitle(`📋 Expediente de Moderación - ${target.username}`)
+            .setDescription(`**Resumen de Historial:**\n⚠️ Warns: \`${warns}\` | 👢 Kicks: \`${kicks}\` | 🔨 Bans: \`${bans}\``)
+            .setColor('#6366f1')
+            .setThumbnail(target.displayAvatarURL({ dynamic: true }))
+            .setTimestamp();
+
+        const recentLogs = logs.slice(-10).reverse();
+        recentLogs.forEach((log) => {
+            let emoji = '⚠️';
+            if (log.tipo === 'KICK') emoji = '👢';
+            if (log.tipo === 'BAN') emoji = '🔨';
+            if (log.tipo === 'UNBAN') emoji = '🔓';
+
+            embed.addFields({
+                name: `${emoji} [${log.tipo}] — ${log.fecha}`,
+                value: `**Razón:** ${log.razon}\n**Moderador:** ${log.por}`
+            });
+        });
+
+        return interaction.reply({ embeds: [embed] });
     }
 });
 
