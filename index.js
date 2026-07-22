@@ -25,11 +25,12 @@ const DB_PATH = path.join(__dirname, 'mod_data.json');
 // Base de Datos Local Integrada
 function readDB() {
     if (!fs.existsSync(DB_PATH)) {
-        fs.writeFileSync(DB_PATH, JSON.stringify({ userLogs: {}, logsChannels: {}, stats: { totalScamsBlocked: 0, totalWarnsGiven: 0 } }, null, 2));
+        fs.writeFileSync(DB_PATH, JSON.stringify({ userLogs: {}, logsChannels: {}, autoroles: {}, stats: { totalScamsBlocked: 0, totalWarnsGiven: 0 } }, null, 2));
     }
     const data = JSON.parse(fs.readFileSync(DB_PATH, 'utf-8'));
     if (!data.userLogs) data.userLogs = {};
     if (!data.logsChannels) data.logsChannels = {}; 
+    if (!data.autoroles) data.autoroles = {};
     return data;
 }
 
@@ -37,7 +38,6 @@ function writeDB(data) {
     fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2));
 }
 
-// Función auxiliar para registrar sanciones por usuario
 function addModLog(guildId, userId, tipo, razon, moderador) {
     const db = readDB();
     if (!db.userLogs[guildId]) db.userLogs[guildId] = {};
@@ -52,10 +52,8 @@ function addModLog(guildId, userId, tipo, razon, moderador) {
     writeDB(db);
 }
 
-// Filtro Anti-Scam Automático
 const SCAM_KEYWORDS = ['discord-nitro', 'free-nitro', 'nitro-gift', 'dlscord', 'steeam', 'giveaway-nitro'];
 
-// Función para enviar mensajes al canal de logs del servidor
 async function sendLog(guild, embed) {
     const db = readDB();
     const channelId = db.logsChannels[guild.id];
@@ -79,17 +77,26 @@ const commands = [
     new SlashCommandBuilder().setName('modlogs').setDescription('Muestra el historial completo de sanciones de un usuario').addUserOption(opt => opt.setName('usuario').setDescription('Usuario a consultar').setRequired(true)),
     
     new SlashCommandBuilder()
+        .setName('autorole')
+        .setDescription('Configura la asignación automática de roles')
+        .addSubcommand(sub => 
+            sub.setName('add')
+               .setDescription('Añade un rol automático')
+               .addStringOption(opt => opt.setName('type').setDescription('Tipo de miembro').setRequired(true).addChoices({ name: 'Humano', value: 'human' }, { name: 'Bot', value: 'bot' }))
+               .addRoleOption(opt => opt.setName('role').setDescription('Rol a asignar').setRequired(true))
+        )
+        .addSubcommand(sub => 
+            sub.setName('remove')
+               .setDescription('Elimina un rol automático')
+               .addStringOption(opt => opt.setName('type').setDescription('Tipo de miembro').setRequired(true).addChoices({ name: 'Humano', value: 'human' }, { name: 'Bot', value: 'bot' }))
+        )
+        .addSubcommand(sub => sub.setName('list').setDescription('Muestra los roles automáticos activos')),
+
+    new SlashCommandBuilder()
         .setName('logs')
         .setDescription('Configuración del sistema de registros')
-        .addSubcommand(sub => 
-            sub.setName('establecer')
-               .setDescription('Establece el canal donde se enviarán los logs')
-               .addChannelOption(opt => opt.setName('canal').setDescription('Selecciona el canal de texto').addChannelTypes(ChannelType.GuildText).setRequired(true))
-        )
-        .addSubcommand(sub => 
-            sub.setName('eliminar')
-               .setDescription('Desactiva el canal de logs actual')
-        )
+        .addSubcommand(sub => sub.setName('establecer').setDescription('Establece canal de logs').addChannelOption(opt => opt.setName('canal').setDescription('Canal').addChannelTypes(ChannelType.GuildText).setRequired(true)))
+        .addSubcommand(sub => sub.setName('eliminar').setDescription('Desactiva canal de logs'))
 ].map(cmd => cmd.toJSON());
 
 async function deployCommands() {
@@ -103,13 +110,33 @@ async function deployCommands() {
     }
 }
 
-// --- EVENTOS ---
 client.once('ready', () => {
     console.log(`[DISCORD] ¡AEGIS 🪄 online como ${client.user.tag}! 🟩`);
     deployCommands();
 });
 
-// Filtro Anti-Scam en vivo
+// EVENTO AUTOROLE
+client.on('guildMemberAdd', async member => {
+    const db = readDB();
+    const serverAutoroles = db.autoroles[member.guild.id];
+    if (!serverAutoroles) return;
+
+    const typeKey = member.user.bot ? 'bot' : 'human';
+    const roleId = serverAutoroles[typeKey];
+
+    if (roleId) {
+        const role = member.guild.roles.cache.get(roleId);
+        if (role) {
+            try {
+                await member.roles.add(role);
+                console.log(`[AUTOROLE] Rol ${role.name} asignado a ${member.user.tag}`);
+            } catch (err) {
+                console.error(`[AUTOROLE ERROR]:`, err.message);
+            }
+        }
+    }
+});
+
 client.on('messageCreate', async message => {
     if (message.author.bot || !message.guild) return;
     const contentLower = message.content.toLowerCase();
@@ -122,48 +149,79 @@ client.on('messageCreate', async message => {
             db.stats.totalScamsBlocked += 1;
             writeDB(db);
             
-            const alertEmbed = new EmbedBuilder().setTitle('🛡️ Sistema Anti-Scam AEGIS 🪄').setDescription(`Se ha eliminado un enlace sospechoso enviado por ${message.author}.`).setColor('#ef4444').setTimestamp();
+            const alertEmbed = new EmbedBuilder().setTitle('🛡️ Anti-Scam AEGIS 🪄').setDescription(`Enlace sospechoso eliminado de ${message.author}.`).setColor('#ef4444').setTimestamp();
             await message.channel.send({ embeds: [alertEmbed] });
 
-            const logEmbed = new EmbedBuilder().setTitle('🚨 Log: Enlace de Scam Detectado').setDescription(`**Usuario:** ${message.author} (${message.author.id})\n**Canal:** ${message.channel}\n**Contenido:** \`${message.content}\``).setColor('#ef4444').setTimestamp();
+            const logEmbed = new EmbedBuilder().setTitle('🚨 Log: Scam Detectado').setDescription(`**Usuario:** ${message.author}\n**Contenido:** \`${message.content}\``).setColor('#ef4444').setTimestamp();
             await sendLog(message.guild, logEmbed);
         } catch (err) {
             console.error('Error Anti-Scam:', err.message);
         }
     }
 });
-
 // --- EJECUCIÓN DE COMANDOS SLASH ---
 client.on('interactionCreate', async interaction => {
     if (!interaction.isChatInputCommand()) return;
     const { commandName, guildId, member, guild } = interaction;
 
-    // Control de Permisos
     if (commandName !== 'ping' && commandName !== 'help' && !member.permissions.has('ModerateMembers') && !member.permissions.has('Administrator')) {
-        return interaction.reply({ content: '❌ No tienes permisos para usar la moderación de AEGIS 🪄.', ephemeral: true });
+        return interaction.reply({ content: '❌ No tienes permisos para usar AEGIS 🪄.', ephemeral: true });
     }
 
     if (commandName === 'ping') {
-        return interaction.reply({ content: `📡 Latencia de respuesta de AEGIS 🪄: **${client.ws.ping}ms**`, ephemeral: true });
+        return interaction.reply({ content: `📡 Latencia: **${client.ws.ping}ms**`, ephemeral: true });
     }
 
     if (commandName === 'help') {
         const helpEmbed = new EmbedBuilder()
-            .setTitle('🪄 Panel de Ayuda — Sistema de Seguridad AEGIS')
-            .setDescription('Hola, soy AEGIS. Estoy diseñado para proteger y moderar este servidor de forma automática 24/7.')
+            .setTitle('🪄 Panel de Ayuda — AEGIS')
+            .setDescription('Sistema de Seguridad y Moderación 24/7.')
             .setColor('#6366f1')
             .setThumbnail(client.user.displayAvatarURL())
             .addFields(
-                { name: '🌐 Utilidad General', value: '`/help` - Muestra este panel.\n`/ping` - Revisa la latencia del bot.' },
-                { name: '🛡️ Moderación Básica', value: '`/clear [1-100]` - Borra mensajes masivos.\n`/modlogs [@usuario]` - Revisa el expediente unificado de sanciones de un miembro.' },
-                { name: '⚠️ Sistema de Sanciones', value: '`/warn [@usuario] [razón]` - Registra una advertencia.\n`/unwarn [@usuario]` - Elimina la última advertencia.\n`/kick [@usuario] [razón]` - Expulsa al miembro.\n`/ban [@usuario] [razón]` - Aplica un baneo definitivo.\n`/unban [ID-Usuario] [razón]` - Remueve el baneo usando su ID.' },
-                { name: '⚙️ Configuración Avanzada', value: '`/logs establecer [#canal]` - Elige el canal para los registros en vivo.\n`/logs eliminar` - Desactiva el canal de registros.' },
-                { name: '⚡ Protección Automatizada', value: '• **Filtro Anti-Scam:** Borra automáticamente enlaces maliciosos de "Free Nitro", genera alertas en el chat y envía el reporte detallado al canal de logs.' }
+                { name: '🌐 General', value: '`/help` - Menú de ayuda.\n`/ping` - Latencia.' },
+                { name: '🎭 Autorole', value: '`/autorole add` - Añade rol automático.\n`/autorole remove` - Elimina rol automático.\n`/autorole list` - Ver roles activos.' },
+                { name: '🛡️ Moderación', value: '`/clear` - Limpiar mensajes.\n`/modlogs` - Expediente de sanciones.\n`/warn` | `/unwarn` | `/kick` | `/ban` | `/unban`' },
+                { name: '⚙️ Logs', value: '`/logs establecer` | `/logs eliminar`' }
             )
-            .setFooter({ text: 'AEGIS 🪄 — Seguridad y Moderación Eficiente', iconURL: client.user.displayAvatarURL() })
+            .setFooter({ text: 'AEGIS 🪄 — Moderación Eficiente', iconURL: client.user.displayAvatarURL() })
             .setTimestamp();
 
         return interaction.reply({ embeds: [helpEmbed] });
+    }
+
+    if (commandName === 'autorole') {
+        const subcommand = interaction.options.getSubcommand();
+        const db = readDB();
+        if (!db.autoroles[guildId]) db.autoroles[guildId] = {};
+
+        if (subcommand === 'add') {
+            const type = interaction.options.getString('type');
+            const role = interaction.options.getRole('role');
+            db.autoroles[guildId][type] = role.id;
+            writeDB(db);
+            return interaction.reply({ content: `✅ Rol ${role} configurado como Autorole para **${type === 'human' ? 'Humanos' : 'Bots'}**.` });
+        }
+
+        if (subcommand === 'remove') {
+            const type = interaction.options.getString('type');
+            if (!db.autoroles[guildId][type]) return interaction.reply({ content: '❌ No hay rol configurado para este tipo.', ephemeral: true });
+            delete db.autoroles[guildId][type];
+            writeDB(db);
+            return interaction.reply({ content: `🗑️ Autorole eliminado para **${type === 'human' ? 'Humanos' : 'Bots'}**.` });
+        }
+
+        if (subcommand === 'list') {
+            const humanRole = db.autoroles[guildId].human ? `<@&${db.autoroles[guildId].human}>` : '`No configurado`';
+            const botRole = db.autoroles[guildId].bot ? `<@&${db.autoroles[guildId].bot}>` : '`No configurado`';
+
+            const listEmbed = new EmbedBuilder()
+                .setTitle('🎭 Roles Automáticos del Servidor')
+                .addFields({ name: '👤 Humanos', value: humanRole, inline: true }, { name: '🤖 Bots', value: botRole, inline: true })
+                .setColor('#6366f1');
+
+            return interaction.reply({ embeds: [listEmbed] });
+        }
     }
 
     if (commandName === 'logs') {
@@ -174,14 +232,14 @@ client.on('interactionCreate', async interaction => {
             const targetChannel = interaction.options.getChannel('canal');
             db.logsChannels[guildId] = targetChannel.id;
             writeDB(db);
-            return interaction.reply({ content: `✅ Canal de logs establecido con éxito en: ${targetChannel}` });
+            return interaction.reply({ content: `✅ Canal de logs guardado: ${targetChannel}` });
         }
 
         if (subcommand === 'eliminar') {
-            if (!db.logsChannels[guildId]) return interaction.reply({ content: '❌ No hay ningún canal de logs configurado actualmente.', ephemeral: true });
+            if (!db.logsChannels[guildId]) return interaction.reply({ content: '❌ No hay canal de logs configurado.', ephemeral: true });
             delete db.logsChannels[guildId];
             writeDB(db);
-            return interaction.reply({ content: '🗑️ El canal de logs ha sido desactivado correctamente.' });
+            return interaction.reply({ content: '🗑️ Canal de logs desactivado.' });
         }
     }
 
@@ -191,7 +249,7 @@ client.on('interactionCreate', async interaction => {
         await interaction.deferReply({ ephemeral: true });
         const deleted = await interaction.channel.bulkDelete(cantidad, true);
         
-        const logEmbed = new EmbedBuilder().setTitle('🧹 Log: Mensajes Eliminados').setDescription(`**Moderador:** ${interaction.user}\n**Canal:** ${interaction.channel}\n**Cantidad solicitada:** ${cantidad}\n**Mensajes borrados reales:** ${deleted.size}`).setColor('#3b82f6').setTimestamp();
+        const logEmbed = new EmbedBuilder().setTitle('🧹 Log: Mensajes Eliminados').setDescription(`**Moderador:** ${interaction.user}\n**Canal:** ${interaction.channel}\n**Borrados:** ${deleted.size}`).setColor('#3b82f6').setTimestamp();
         await sendLog(guild, logEmbed);
 
         return interaction.editReply({ content: `🧹 Se limpiaron **${deleted.size}** mensajes.` });
@@ -200,7 +258,6 @@ client.on('interactionCreate', async interaction => {
     if (commandName === 'warn') {
         const target = interaction.options.getUser('usuario');
         const razon = interaction.options.getString('razon');
-        
         addModLog(guildId, target.id, 'WARN', razon, interaction.user.tag);
         
         const db = readDB();
@@ -208,7 +265,6 @@ client.on('interactionCreate', async interaction => {
         writeDB(db);
         
         const warnEmbed = new EmbedBuilder().setTitle('⚠️ Usuario Advertido').setDescription(`**Miembro:** ${target}\n**Razón:** ${razon}\n**Moderador:** ${interaction.user}`).setColor('#f59e0b').setTimestamp();
-        
         await sendLog(guild, warnEmbed);
         return interaction.reply({ embeds: [warnEmbed] });
     }
@@ -216,20 +272,16 @@ client.on('interactionCreate', async interaction => {
     if (commandName === 'unwarn') {
         const target = interaction.options.getUser('usuario');
         const db = readDB();
-        
         const logs = db.userLogs[guildId]?.[target.id] || [];
         const warnIndexes = logs.map((l, idx) => l.tipo === 'WARN' ? idx : null).filter(v => v !== null);
 
-        if (warnIndexes.length === 0) {
-            return interaction.reply({ content: `❌ ${target.username} no tiene advertencias activas para remover.`, ephemeral: true });
-        }
+        if (warnIndexes.length === 0) return interaction.reply({ content: `❌ ${target.username} no tiene advertencias activas.`, ephemeral: true });
         
         const lastWarnIdx = warnIndexes[warnIndexes.length - 1];
         const removida = logs.splice(lastWarnIdx, 1)[0];
         writeDB(db);
 
-        const unwarnEmbed = new EmbedBuilder().setTitle('🛡️ Advertencia Removida').setDescription(`Se eliminó la última advertencia de ${target}.\n**Moderador:** ${interaction.user}\n**Razón original:** ${removida.razon}`).setColor('#10b981').setTimestamp();
-        
+        const unwarnEmbed = new EmbedBuilder().setTitle('🛡️ Advertencia Removida').setDescription(`Se eliminó la advertencia de ${target}.\n**Razón:** ${removida.razon}`).setColor('#10b981').setTimestamp();
         await sendLog(guild, unwarnEmbed);
         return interaction.reply({ embeds: [unwarnEmbed] });
     }
@@ -244,9 +296,8 @@ client.on('interactionCreate', async interaction => {
         addModLog(guildId, targetUser.id, 'KICK', razon, interaction.user.tag);
         await targetMember.kick(razon);
 
-        const logEmbed = new EmbedBuilder().setTitle('👢 Log: Usuario Expulsado').setDescription(`**Usuario:** ${targetUser.username} (${targetUser.id})\n**Moderador:** ${interaction.user}\n**Razón:** ${razon}`).setColor('#ef4444').setTimestamp();
+        const logEmbed = new EmbedBuilder().setTitle('👢 Log: Usuario Expulsado').setDescription(`**Usuario:** ${targetUser.username}\n**Moderador:** ${interaction.user}\n**Razón:** ${razon}`).setColor('#ef4444').setTimestamp();
         await sendLog(guild, logEmbed);
-
         return interaction.reply({ content: `👢 **${targetUser.username}** fue expulsado.` });
     }
 
@@ -260,9 +311,8 @@ client.on('interactionCreate', async interaction => {
         addModLog(guildId, targetUser.id, 'BAN', razon, interaction.user.tag);
         await targetMember.ban({ reason: razon });
 
-        const logEmbed = new EmbedBuilder().setTitle('🔨 Log: Usuario Baneado').setDescription(`**Usuario:** ${targetUser.username} (${targetUser.id})\n**Moderador:** ${interaction.user}\n**Razón:** ${razon}`).setColor('#b91c1c').setTimestamp();
+        const logEmbed = new EmbedBuilder().setTitle('🔨 Log: Usuario Baneado').setDescription(`**Usuario:** ${targetUser.username}\n**Moderador:** ${interaction.user}\n**Razón:** ${razon}`).setColor('#b91c1c').setTimestamp();
         await sendLog(guild, logEmbed);
-
         return interaction.reply({ content: `🔨 **${targetUser.username}** fue baneado.` });
     }
 
@@ -274,12 +324,11 @@ client.on('interactionCreate', async interaction => {
             await guild.members.unban(userId, razon);
             addModLog(guildId, userId, 'UNBAN', razon, interaction.user.tag);
             
-            const logEmbed = new EmbedBuilder().setTitle('🔓 Log: Usuario Desbaneado').setDescription(`**ID de Usuario:** \`${userId}\`\n**Moderador:** ${interaction.user}\n**Razón:** ${razon}`).setColor('#10b981').setTimestamp();
+            const logEmbed = new EmbedBuilder().setTitle('🔓 Log: Usuario Desbaneado').setDescription(`**ID:** \`${userId}\`\n**Moderador:** ${interaction.user}`).setColor('#10b981').setTimestamp();
             await sendLog(guild, logEmbed);
-
-            return interaction.reply({ content: `🔓 El usuario con ID \`${userId}\` ha sido desbaneado correctamente.` });
+            return interaction.reply({ content: `🔓 Usuario con ID \`${userId}\` desbaneado.` });
         } catch (err) {
-            return interaction.reply({ content: '❌ No se pudo desbanear a ese usuario. Verifica la ID.', ephemeral: true });
+            return interaction.reply({ content: '❌ No se pudo desbanear. Revisa la ID.', ephemeral: true });
         }
     }
 
@@ -288,32 +337,22 @@ client.on('interactionCreate', async interaction => {
         const db = readDB();
         const logs = db.userLogs[guildId]?.[target.id] || [];
 
-        if (logs.length === 0) {
-            return interaction.reply({ content: `✅ **${target.username}** tiene un expediente limpio. No hay registros de sanciones.`, ephemeral: true });
-        }
+        if (logs.length === 0) return interaction.reply({ content: `✅ **${target.username}** tiene expediente limpio.`, ephemeral: true });
 
         const warns = logs.filter(l => l.tipo === 'WARN').length;
         const kicks = logs.filter(l => l.tipo === 'KICK').length;
         const bans = logs.filter(l => l.tipo === 'BAN').length;
 
         const embed = new EmbedBuilder()
-            .setTitle(`📋 Expediente de Moderación - ${target.username}`)
-            .setDescription(`**Resumen de Historial:**\n⚠️ Warns: \`${warns}\` | 👢 Kicks: \`${kicks}\` | 🔨 Bans: \`${bans}\``)
+            .setTitle(`📋 Expediente - ${target.username}`)
+            .setDescription(`⚠️ Warns: \`${warns}\` | 👢 Kicks: \`${kicks}\` | 🔨 Bans: \`${bans}\``)
             .setColor('#6366f1')
             .setThumbnail(target.displayAvatarURL({ dynamic: true }))
             .setTimestamp();
 
-        const recentLogs = logs.slice(-10).reverse();
-        recentLogs.forEach((log) => {
-            let emoji = '⚠️';
-            if (log.tipo === 'KICK') emoji = '👢';
-            if (log.tipo === 'BAN') emoji = '🔨';
-            if (log.tipo === 'UNBAN') emoji = '🔓';
-
-            embed.addFields({
-                name: `${emoji} [${log.tipo}] — ${log.fecha}`,
-                value: `**Razón:** ${log.razon}\n**Moderador:** ${log.por}`
-            });
+        logs.slice(-10).reverse().forEach(log => {
+            let emoji = log.tipo === 'KICK' ? '👢' : log.tipo === 'BAN' ? '🔨' : log.tipo === 'UNBAN' ? '🔓' : '⚠️';
+            embed.addFields({ name: `${emoji} [${log.tipo}] — ${log.fecha}`, value: `**Razón:** ${log.razon}\n**Por:** ${log.por}` });
         });
 
         return interaction.reply({ embeds: [embed] });
