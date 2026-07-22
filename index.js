@@ -148,7 +148,7 @@ client.on('interactionCreate', async interaction => {
             embed.setTitle('🛡️ Comandos de Moderación')
                 .setDescription('`/warn [usuario] [razon]` - Advierte a un miembro.\n`/unwarn [usuario]` - Quita la última advertencia.\n`/kick [usuario] [razon]` - Expulsa a un miembro.\n`/ban [usuario] [razon]` - Banea a un usuario.\n`/unban [id]` - Desbanea un usuario por su ID.\n`/clear [cantidad]` - Limpia mensajes del chat.\n`/modlogs [usuario]` - Revisa el expediente.');
         } else if (selected === 'config') {
-            embed.setTitle('⚙️ Configuración del Servidor')
+            embed.setTitle('⚙️ Comandos de Configuración')
                 .setDescription('`/autorole add` - Asigna rol automático.\n`/autorole remove` - Desactiva rol automático.\n`/autorole list` - Ver roles automáticos.\n`/logs establecer` - Define el canal de registros.\n`/logs eliminar` - Desactiva el canal de logs.');
         }
 
@@ -158,7 +158,7 @@ client.on('interactionCreate', async interaction => {
     if (!interaction.isChatInputCommand()) return;
     const { commandName, guildId, member, guild, user } = interaction;
 
-    // --- CÓDIGO DEL /HELP INTERACTIVO ESTILO MOKENO BOT ---
+    // --- CÓDIGO DEL /HELP INTERACTIVO ---
     if (commandName === 'help') {
         const helpEmbed = new EmbedBuilder()
             .setTitle('📖 Menú de Ayuda — AEGIS 🪄')
@@ -182,12 +182,12 @@ client.on('interactionCreate', async interaction => {
                 { label: 'Configuración', description: 'Logs y Autorole', value: 'config', emoji: '⚙️' },
             ]);
 
-        // BOTONES DE ENLACES EXTERNOS
+        // BOTONES DE ENLACES EXTERNOS CON EL LINK REAL DE SOPORTE
         const buttons = new ActionRowBuilder().addComponents(
             new ButtonBuilder()
                 .setLabel('Servidor de Soporte')
                 .setStyle(ButtonStyle.Link)
-                .setURL('https://discord.gg'),
+                .setURL('https://discord.gg/Ya9MXjdPDZ'),
             new ButtonBuilder()
                 .setLabel('Sitio Web')
                 .setStyle(ButtonStyle.Link)
