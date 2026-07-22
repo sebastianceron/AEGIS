@@ -1,6 +1,5 @@
-const { SlashCommandBuilder, EmbedBuilder, ChannelType } = require('discord.js');
+const { SlashCommandBuilder, ChannelType } = require('discord.js');
 
-// Definición de comandos Slash
 const commandsData = [
     new SlashCommandBuilder().setName('ping').setDescription('Muestra la latencia del sistema AEGIS 🪄'),
     new SlashCommandBuilder().setName('help').setDescription('Muestra el menú de ayuda y comandos de AEGIS 🪄'),
@@ -17,12 +16,12 @@ const commandsData = [
         .setDescription('Configura la asignación automática de roles')
         .addSubcommand(sub => 
             sub.setName('add').setDescription('Añade un rol automático')
-               .addStringOption(opt => opt.setName('type').setDescription('Tipo de miembro').setRequired(true).addChoices({ name: 'Humano', value: 'human' }, { name: 'Bot', value: 'bot' }))
+               .addStringOption(opt => opt.setName('type').setDescription('Tipo de miembro').setRequired(true).addChoices({ name: 'Humano 👤', value: 'human' }, { name: 'Bot 🤖', value: 'bot' }))
                .addRoleOption(opt => opt.setName('role').setDescription('Rol a asignar').setRequired(true))
         )
         .addSubcommand(sub => 
             sub.setName('remove').setDescription('Elimina un rol automático')
-               .addStringOption(opt => opt.setName('type').setDescription('Tipo de miembro').setRequired(true).addChoices({ name: 'Humano', value: 'human' }, { name: 'Bot', value: 'bot' }))
+               .addStringOption(opt => opt.setName('type').setDescription('Tipo de miembro').setRequired(true).addChoices({ name: 'Humano 👤', value: 'human' }, { name: 'Bot 🤖', value: 'bot' }))
         )
         .addSubcommand(sub => sub.setName('list').setDescription('Muestra los roles automáticos activos')),
 

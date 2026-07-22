@@ -1,10 +1,8 @@
-// --- SERVIDOR HTTP 24/7 ---
 const express = require('express');
 const app = express();
 app.get('/', (req, res) => res.send('AEGIS 🪄 activo 24/7!'));
 app.listen(process.env.PORT || 3000, () => console.log('[HTTP] Servidor listo 🟩'));
 
-// --- DEPENDENCIAS ---
 require('dotenv').config();
 const { Client, GatewayIntentBits, EmbedBuilder, REST, Routes } = require('discord.js');
 const fs = require('fs');
@@ -69,7 +67,6 @@ client.once('ready', () => {
     deployCommands();
 });
 
-// AUTOROLE
 client.on('guildMemberAdd', async member => {
     const db = readDB();
     const serverAutoroles = db.autoroles[member.guild.id];
@@ -81,48 +78,82 @@ client.on('guildMemberAdd', async member => {
     }
 });
 
-// ANTI-SCAM
 client.on('messageCreate', async message => {
     if (message.author.bot || !message.guild) return;
     const contentLower = message.content.toLowerCase();
-    if (SCAM_KEYWORDS.some(k => contentLower.includes(k)) || (contentLower.includes('http') && contentLower.includes('nitro'))) {
+
+    const isScam = SCAM_KEYWORDS.some(k => contentLower.includes(k)) || (contentLower.includes('http') && contentLower.includes('nitro'));
+    const isInvite = contentLower.includes('discord.gg/') || contentLower.includes('discord.com/invite/');
+    const isMassMention = message.mentions.users.size + message.mentions.roles.size > 5;
+
+    if (isScam || isInvite || isMassMention) {
         try {
             await message.delete();
-            const db = readDB();
-            db.stats.totalScamsBlocked += 1;
-            writeDB(db);
-            const alertEmbed = new EmbedBuilder().setTitle('🛡️ Anti-Scam AEGIS 🪄').setDescription(`Enlace sospechoso eliminado de ${message.author}.`).setColor('#ef4444').setTimestamp();
+            let motivo = 'Enlace sospechoso de Scam';
+            if (isInvite) motivo = 'Invitación no autorizada a otro servidor';
+            if (isMassMention) motivo = 'Menciones masivas (+5 usuarios/roles)';
+
+            const alertEmbed = new EmbedBuilder()
+                .setTitle('🛡️ Protección Automática — AEGIS 🪄')
+                .setDescription(`Se ha eliminado un mensaje de ${message.author} por infringir las normas de seguridad.`)
+                .addFields({ name: '⚠️ Motivo', value: `\`${motivo}\`` })
+                .setColor('#ef4444')
+                .setFooter({ text: 'AEGIS Security System', iconURL: client.user.displayAvatarURL() })
+                .setTimestamp();
+
             await message.channel.send({ embeds: [alertEmbed] });
-            const logEmbed = new EmbedBuilder().setTitle('🚨 Log: Scam').setDescription(`**Usuario:** ${message.author}\n**Contenido:** \`${message.content}\``).setColor('#ef4444').setTimestamp();
+
+            const logEmbed = new EmbedBuilder()
+                .setTitle('🚨 Log: AutoMod Activado')
+                .setThumbnail(message.author.displayAvatarURL({ dynamic: true }))
+                .addFields(
+                    { name: '👤 Usuario', value: `${message.author} (\`${message.author.id}\`)`, inline: true },
+                    { name: '💬 Canal', value: `${message.channel}`, inline: true },
+                    { name: '⚠️ Motivo', value: `\`${motivo}\`` },
+                    { name: '📄 Contenido', value: `\`\`\`${message.content.slice(0, 500)}\`\`\`` }
+                )
+                .setColor('#ef4444')
+                .setTimestamp();
+
             await sendLog(message.guild, logEmbed);
         } catch (e) {}
     }
 });
-
-// EJECUCIÓN DE COMANDOS
 client.on('interactionCreate', async interaction => {
     if (!interaction.isChatInputCommand()) return;
     const { commandName, guildId, member, guild } = interaction;
 
     if (commandName !== 'ping' && commandName !== 'help' && !member.permissions.has('ModerateMembers') && !member.permissions.has('Administrator')) {
-        return interaction.reply({ content: '❌ Sin permisos.', ephemeral: true });
+        return interaction.reply({ content: '❌ No tienes permisos para usar la moderación de AEGIS 🪄.', ephemeral: true });
     }
 
-    if (commandName === 'ping') return interaction.reply({ content: `📡 Latencia: **${client.ws.ping}ms**`, ephemeral: true });
+    if (commandName === 'ping') {
+        const pingEmbed = new EmbedBuilder()
+            .setTitle('📡 Latencia del Sistema AEGIS 🪄')
+            .addFields(
+                { name: '⚡ Latencia de Bot', value: `\`${client.ws.ping}ms\``, inline: true },
+                { name: '🟢 Estado', value: '`Óptimo 24/7`', inline: true }
+            )
+            .setColor('#10b981')
+            .setFooter({ text: 'AEGIS Guard', iconURL: client.user.displayAvatarURL() });
+
+        return interaction.reply({ embeds: [pingEmbed], ephemeral: true });
+    }
 
     if (commandName === 'help') {
         const helpEmbed = new EmbedBuilder()
-            .setTitle('🪄 Panel de Ayuda — AEGIS')
-            .setDescription('Sistema de Seguridad y Moderación 24/7.')
+            .setTitle('🪄 Panel Principal — AEGIS System')
+            .setDescription('Bienvenido al centro de control de **AEGIS**. Aquí tienes la lista de comandos disponibles para administrar y proteger tu servidor.')
             .setColor('#6366f1')
             .setThumbnail(client.user.displayAvatarURL())
             .addFields(
-                { name: '🌐 General', value: '`/help` - Menú de ayuda.\n`/ping` - Latencia del bot.' },
-                { name: '🎭 Autorole', value: '`/autorole add` - Asigna rol automático.\n`/autorole remove` - Quita rol automático.\n`/autorole list` - Ver roles activos.' },
-                { name: '🛡️ Moderación', value: '`/clear` | `/modlogs` | `/warn` | `/unwarn` | `/kick` | `/ban` | `/unban`' },
-                { name: '⚙️ Configuración', value: '`/logs establecer` | `/logs eliminar`' }
+                { name: '🌐 General', value: '`/help` - Muestra este panel elegante.\n`/ping` - Revisa el estado y latencia.' },
+                { name: '🎭 Autorole', value: '`/autorole add` - Asigna un rol automático a personas o bots.\n`/autorole remove` - Desactiva un rol automático.\n`/autorole list` - Muestra los roles configurados.' },
+                { name: '🛡️ Moderación', value: '`/clear` - Limpieza rápida de chat.\n`/warn` | `/unwarn` - Gestión de advertencias.\n`/kick` | `/ban` | `/unban` - Expulsiones y baneos.\n`/modlogs` - Expediente histórico de sanciones.' },
+                { name: '⚙️ Configuración', value: '`/logs establecer` - Define el canal de registros.\n`/logs eliminar` - Desactiva el canal de registros.' },
+                { name: '⚡ AutoMod Pasivo', value: '• **Filtro Anti-Scam** (Links falsos de Nitro)\n• **Filtro Anti-Invitaciones** (discord.gg)\n• **Filtro Anti-Menciones** (+5 etiquetas)' }
             )
-            .setFooter({ text: 'AEGIS 🪄 — Moderación Eficiente', iconURL: client.user.displayAvatarURL() })
+            .setFooter({ text: 'AEGIS 🪄 — Moderación Eficiente y Elegante', iconURL: client.user.displayAvatarURL() })
             .setTimestamp();
 
         return interaction.reply({ embeds: [helpEmbed] });
@@ -138,19 +169,48 @@ client.on('interactionCreate', async interaction => {
             const role = interaction.options.getRole('role');
             db.autoroles[guildId][type] = role.id;
             writeDB(db);
-            const embed = new EmbedBuilder().setTitle('🎭 Autorole Configurado').setDescription(`Rol ${role} asignado a **${type === 'human' ? 'Humanos' : 'Bots'}**.`).setColor('#10b981').setTimestamp();
+
+            const embed = new EmbedBuilder()
+                .setTitle('🎭 Configuración de Autorole')
+                .setDescription('Se ha establecido con éxito la asignación automática de rol para los nuevos miembros.')
+                .addFields(
+                    { name: '👥 Tipo de Miembro', value: type === 'human' ? '`Humanos 👤`' : '`Bots 🤖`', inline: true },
+                    { name: '🎖️ Rol Asignado', value: `${role}`, inline: true }
+                )
+                .setColor('#10b981')
+                .setFooter({ text: 'AEGIS Autorole', iconURL: client.user.displayAvatarURL() })
+                .setTimestamp();
+
             return interaction.reply({ embeds: [embed] });
         }
         if (sub === 'remove') {
             const type = interaction.options.getString('type');
             delete db.autoroles[guildId][type];
             writeDB(db);
-            return interaction.reply({ content: '🗑️ Autorole eliminado.', ephemeral: true });
+
+            const embed = new EmbedBuilder()
+                .setTitle('🗑️ Autorole Desactivado')
+                .setDescription(`Se ha eliminado el rol automático para **${type === 'human' ? 'Humanos 👤' : 'Bots 🤖'}**.`)
+                .setColor('#ef4444')
+                .setTimestamp();
+
+            return interaction.reply({ embeds: [embed] });
         }
         if (sub === 'list') {
             const human = db.autoroles[guildId].human ? `<@&${db.autoroles[guildId].human}>` : '`No configurado`';
             const bot = db.autoroles[guildId].bot ? `<@&${db.autoroles[guildId].bot}>` : '`No configurado`';
-            const embed = new EmbedBuilder().setTitle('🎭 Autoroles Activos').addFields({ name: '👤 Humanos', value: human, inline: true }, { name: '🤖 Bots', value: bot, inline: true }).setColor('#6366f1');
+
+            const embed = new EmbedBuilder()
+                .setTitle('🎭 Roles Automáticos Activos')
+                .setDescription('Estos son los roles que se otorgan automáticamente cuando entra un nuevo usuario.')
+                .addFields(
+                    { name: '👤 Humanos', value: human, inline: true },
+                    { name: '🤖 Bots', value: bot, inline: true }
+                )
+                .setColor('#6366f1')
+                .setFooter({ text: 'AEGIS Autorole System', iconURL: client.user.displayAvatarURL() })
+                .setTimestamp();
+
             return interaction.reply({ embeds: [embed] });
         }
     }
@@ -162,12 +222,26 @@ client.on('interactionCreate', async interaction => {
             const ch = interaction.options.getChannel('canal');
             db.logsChannels[guildId] = ch.id;
             writeDB(db);
-            return interaction.reply({ content: `✅ Canal de logs guardado: ${ch}` });
+
+            const embed = new EmbedBuilder()
+                .setTitle('⚙️ Canal de Registros Establecido')
+                .setDescription(`A partir de ahora, todas las alertas de moderación se enviarán a ${ch}.`)
+                .setColor('#10b981')
+                .setTimestamp();
+
+            return interaction.reply({ embeds: [embed] });
         }
         if (sub === 'eliminar') {
             delete db.logsChannels[guildId];
             writeDB(db);
-            return interaction.reply({ content: '🗑️ Canal de logs desactivado.' });
+
+            const embed = new EmbedBuilder()
+                .setTitle('🗑️ Canal de Registros Desactivado')
+                .setDescription('Se han desactivado los reportes en vivo para este servidor.')
+                .setColor('#ef4444')
+                .setTimestamp();
+
+            return interaction.reply({ embeds: [embed] });
         }
     }
 
@@ -175,16 +249,44 @@ client.on('interactionCreate', async interaction => {
         const cant = interaction.options.getInteger('cantidad');
         await interaction.deferReply({ ephemeral: true });
         const deleted = await interaction.channel.bulkDelete(cant, true);
-        const logEmbed = new EmbedBuilder().setTitle('🧹 Log: Limpieza').setDescription(`**Mod:** ${interaction.user}\n**Canal:** ${interaction.channel}\n**Borrados:** ${deleted.size}`).setColor('#3b82f6').setTimestamp();
+
+        const logEmbed = new EmbedBuilder()
+            .setTitle('🧹 Registros: Limpieza de Mensajes')
+            .addFields(
+                { name: '🛡️ Moderador', value: `${interaction.user}`, inline: true },
+                { name: '💬 Canal', value: `${interaction.channel}`, inline: true },
+                { name: '🗑️ Cantidad Borrada', value: `\`${deleted.size}\` mensajes`, inline: true }
+            )
+            .setColor('#3b82f6')
+            .setTimestamp();
+
         await sendLog(guild, logEmbed);
-        return interaction.editReply({ content: `🧹 Se limpiaron **${deleted.size}** mensajes.` });
+
+        const replyEmbed = new EmbedBuilder()
+            .setTitle('🧹 Limpieza Completada')
+            .setDescription(`Se eliminaron **${deleted.size}** mensajes correctamente.`)
+            .setColor('#10b981');
+
+        return interaction.editReply({ embeds: [replyEmbed] });
     }
 
     if (commandName === 'warn') {
         const target = interaction.options.getUser('usuario');
         const razon = interaction.options.getString('razon');
         addModLog(guildId, target.id, 'WARN', razon, interaction.user.tag);
-        const warnEmbed = new EmbedBuilder().setTitle('⚠️ Usuario Advertido').setDescription(`**Usuario:** ${target}\n**Razón:** ${razon}\n**Mod:** ${interaction.user}`).setColor('#f59e0b').setTimestamp();
+
+        const warnEmbed = new EmbedBuilder()
+            .setTitle('⚠️ Sanción: Advertencia Emitida')
+            .setThumbnail(target.displayAvatarURL({ dynamic: true }))
+            .addFields(
+                { name: '👤 Miembro Sancionado', value: `${target} (\`${target.id}\`)`, inline: true },
+                { name: '🛡️ Moderador', value: `${interaction.user}`, inline: true },
+                { name: '📄 Razón', value: `\`\`\`${razon}\`\`\`` }
+            )
+            .setColor('#f59e0b')
+            .setFooter({ text: 'AEGIS Sanctions', iconURL: client.user.displayAvatarURL() })
+            .setTimestamp();
+
         await sendLog(guild, warnEmbed);
         return interaction.reply({ embeds: [warnEmbed] });
     }
@@ -194,49 +296,117 @@ client.on('interactionCreate', async interaction => {
         const db = readDB();
         const logs = db.userLogs[guildId]?.[target.id] || [];
         const idx = logs.map((l, i) => l.tipo === 'WARN' ? i : null).filter(v => v !== null).pop();
-        if (idx === undefined) return interaction.reply({ content: '❌ Sin advertencias activas.', ephemeral: true });
+
+        if (idx === undefined) return interaction.reply({ content: `❌ **${target.username}** no tiene advertencias registradas.`, ephemeral: true });
+
         const removida = logs.splice(idx, 1)[0];
         writeDB(db);
-        const embed = new EmbedBuilder().setTitle('🛡️ Advertencia Removida').setDescription(`Removida a ${target}.\n**Razón:** ${removida.razon}`).setColor('#10b981').setTimestamp();
+
+        const embed = new EmbedBuilder()
+            .setTitle('🛡️ Sanción Removida: Advertencia Retirada')
+            .setThumbnail(target.displayAvatarURL({ dynamic: true }))
+            .addFields(
+                { name: '👤 Usuario', value: `${target}`, inline: true },
+                { name: '🛡️ Moderador', value: `${interaction.user}`, inline: true },
+                { name: '📄 Razón Original', value: `\`${removida.razon}\`` }
+            )
+            .setColor('#10b981')
+            .setTimestamp();
+
         await sendLog(guild, embed);
         return interaction.reply({ embeds: [embed] });
     }
 
     if (commandName === 'kick') {
         const targetUser = interaction.options.getUser('usuario');
-        const razon = interaction.options.getString('razon') || 'Sin razón';
+        const razon = interaction.options.getString('razon') || 'Sin razón especificada';
         const member = await interaction.guild.members.fetch(targetUser.id).catch(() => null);
-        if (!member || !member.kickable) return interaction.reply({ content: 'No puedo expulsar a este usuario.', ephemeral: true });
+
+        if (!member || !member.kickable) return interaction.reply({ content: '❌ No puedo expulsar a este usuario por jerarquía de roles.', ephemeral: true });
+
         addModLog(guildId, targetUser.id, 'KICK', razon, interaction.user.tag);
         await member.kick(razon);
-        const logEmbed = new EmbedBuilder().setTitle('👢 Log: Expulsión').setDescription(`**Usuario:** ${targetUser.tag}\n**Mod:** ${interaction.user}\n**Razón:** ${razon}`).setColor('#ef4444').setTimestamp();
+
+        const logEmbed = new EmbedBuilder()
+            .setTitle('👢 Registros: Usuario Expulsado')
+            .setThumbnail(targetUser.displayAvatarURL({ dynamic: true }))
+            .addFields(
+                { name: '👤 Usuario Expulsado', value: `${targetUser.tag} (\`${targetUser.id}\`)`, inline: true },
+                { name: '🛡️ Moderador', value: `${interaction.user}`, inline: true },
+                { name: '📄 Razón', value: `\`\`\`${razon}\`\`\`` }
+            )
+            .setColor('#ef4444')
+            .setTimestamp();
+
         await sendLog(guild, logEmbed);
-        return interaction.reply({ content: `👢 **${targetUser.username}** fue expulsado.` });
+
+        const replyEmbed = new EmbedBuilder()
+            .setTitle('👢 Expulsión Ejecutada')
+            .setDescription(`**${targetUser.tag}** fue expulsado del servidor.`)
+            .setColor('#ef4444');
+
+        return interaction.reply({ embeds: [replyEmbed] });
     }
 
     if (commandName === 'ban') {
         const targetUser = interaction.options.getUser('usuario');
-        const razon = interaction.options.getString('razon') || 'Sin razón';
+        const razon = interaction.options.getString('razon') || 'Sin razón especificada';
         const member = await interaction.guild.members.fetch(targetUser.id).catch(() => null);
-        if (!member || !member.bannable) return interaction.reply({ content: 'No puedo banear a este usuario.', ephemeral: true });
+
+        if (!member || !member.bannable) return interaction.reply({ content: '❌ No puedo banear a este usuario por jerarquía de roles.', ephemeral: true });
+
         addModLog(guildId, targetUser.id, 'BAN', razon, interaction.user.tag);
         await member.ban({ reason: razon });
-        const logEmbed = new EmbedBuilder().setTitle('🔨 Log: Baneo').setDescription(`**Usuario:** ${targetUser.tag}\n**Mod:** ${interaction.user}\n**Razón:** ${razon}`).setColor('#b91c1c').setTimestamp();
+
+        const logEmbed = new EmbedBuilder()
+            .setTitle('🔨 Registros: Baneo Permanente')
+            .setThumbnail(targetUser.displayAvatarURL({ dynamic: true }))
+            .addFields(
+                { name: '👤 Usuario Baneado', value: `${targetUser.tag} (\`${targetUser.id}\`)`, inline: true },
+                { name: '🛡️ Moderador', value: `${interaction.user}`, inline: true },
+                { name: '📄 Razón', value: `\`\`\`${razon}\`\`\`` }
+            )
+            .setColor('#b91c1c')
+            .setTimestamp();
+
         await sendLog(guild, logEmbed);
-        return interaction.reply({ content: `🔨 **${targetUser.username}** fue baneado.` });
+
+        const replyEmbed = new EmbedBuilder()
+            .setTitle('🔨 Baneo Ejecutado')
+            .setDescription(`**${targetUser.tag}** fue baneado del servidor.`)
+            .setColor('#b91c1c');
+
+        return interaction.reply({ embeds: [replyEmbed] });
     }
 
     if (commandName === 'unban') {
         const userId = interaction.options.getString('userid');
-        const razon = interaction.options.getString('razon') || 'Sin razón';
+        const razon = interaction.options.getString('razon') || 'Sin razón especificada';
+
         try {
             await guild.members.unban(userId, razon);
             addModLog(guildId, userId, 'UNBAN', razon, interaction.user.tag);
-            const logEmbed = new EmbedBuilder().setTitle('🔓 Log: Desbaneo').setDescription(`**ID:** \`${userId}\`\n**Mod:** ${interaction.user}`).setColor('#10b981').setTimestamp();
+
+            const logEmbed = new EmbedBuilder()
+                .setTitle('🔓 Registros: Baneo Removido')
+                .addFields(
+                    { name: '👤 ID del Usuario', value: `\`${userId}\``, inline: true },
+                    { name: '🛡️ Moderador', value: `${interaction.user}`, inline: true },
+                    { name: '📄 Razón', value: `\`${razon}\`` }
+                )
+                .setColor('#10b981')
+                .setTimestamp();
+
             await sendLog(guild, logEmbed);
-            return interaction.reply({ content: `🔓 Usuario \`${userId}\` desbaneado.` });
+
+            const replyEmbed = new EmbedBuilder()
+                .setTitle('🔓 Desbaneo Exitoso')
+                .setDescription(`El usuario con ID \`${userId}\` ha sido desbaneado.`)
+                .setColor('#10b981');
+
+            return interaction.reply({ embeds: [replyEmbed] });
         } catch (e) {
-            return interaction.reply({ content: '❌ Error al desbanear. Revisa la ID.', ephemeral: true });
+            return interaction.reply({ content: '❌ Error al desbanear. Verifica que la ID sea correcta.', ephemeral: true });
         }
     }
 
@@ -244,12 +414,37 @@ client.on('interactionCreate', async interaction => {
         const target = interaction.options.getUser('usuario');
         const db = readDB();
         const logs = db.userLogs[guildId]?.[target.id] || [];
-        if (logs.length === 0) return interaction.reply({ content: `✅ **${target.username}** tiene expediente limpio.`, ephemeral: true });
-        const embed = new EmbedBuilder().setTitle(`📋 Expediente - ${target.username}`).setColor('#6366f1').setThumbnail(target.displayAvatarURL());
-        logs.slice(-10).reverse().forEach(l => embed.addFields({ name: `[${l.tipo}] ${l.fecha}`, value: `**Razón:** ${l.razon}\n**Por:** ${l.por}` }));
+
+        if (logs.length === 0) {
+            const cleanEmbed = new EmbedBuilder()
+                .setTitle(`📋 Expediente — ${target.username}`)
+                .setDescription(`✅ Este usuario tiene un expediente **completamente limpio**. Sin registro de sanciones.`)
+                .setThumbnail(target.displayAvatarURL({ dynamic: true }))
+                .setColor('#10b981')
+                .setTimestamp();
+
+            return interaction.reply({ embeds: [cleanEmbed] });
+        }
+
+        const warns = logs.filter(l => l.tipo === 'WARN').length;
+        const kicks = logs.filter(l => l.tipo === 'KICK').length;
+        const bans = logs.filter(l => l.tipo === 'BAN').length;
+
+        const embed = new EmbedBuilder()
+            .setTitle(`📋 Expediente de Moderación — ${target.username}`)
+            .setDescription(`**Resumen de Historial Activo:**\n⚠️ Warns: \`${warns}\` | 👢 Kicks: \`${kicks}\` | 🔨 Bans: \`${bans}\``)
+            .setColor('#6366f1')
+            .setThumbnail(target.displayAvatarURL({ dynamic: true }))
+            .setFooter({ text: 'AEGIS Sanction History', iconURL: client.user.displayAvatarURL() })
+            .setTimestamp();
+
+        logs.slice(-10).reverse().forEach(l => {
+            let emoji = l.tipo === 'KICK' ? '👢' : l.tipo === 'BAN' ? '🔨' : l.tipo === 'UNBAN' ? '🔓' : '⚠️';
+            embed.addFields({ name: `${emoji} [${l.tipo}] — ${l.fecha}`, value: `**Razón:** ${l.razon}\n**Moderador:** ${l.por}` });
+        });
+
         return interaction.reply({ embeds: [embed] });
     }
 });
 
 client.login(process.env.BOT_TOKEN).catch(e => console.error('[LOGIN ERROR]', e.message));
-
