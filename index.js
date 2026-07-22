@@ -4,12 +4,21 @@ app.get('/', (req, res) => res.send('AEGIS 🪄 activo 24/7!'));
 app.listen(process.env.PORT || 3000, () => console.log('[HTTP] Servidor listo 🟩'));
 
 require('dotenv').config();
-const { Client, GatewayIntentBits, EmbedBuilder, REST, Routes } = require('discord.js');
+const { 
+    Client, 
+    GatewayIntentBits, 
+    EmbedBuilder, 
+    REST, 
+    Routes,
+    ActionRowBuilder,
+    StringSelectMenuBuilder,
+    ButtonBuilder,
+    ButtonStyle
+} = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 const { commandsData } = require('./commands');
 
-// TU ID DE CREADOR CONFIGURADA
 const OWNER_ID = process.env.OWNER_ID || '1518292336214544547';
 
 const client = new Client({
@@ -123,45 +132,91 @@ client.on('messageCreate', async message => {
     }
 });
 client.on('interactionCreate', async interaction => {
+    // --- MANEJO DEL MENÚ DESPLEGABLE (HELP) ---
+    if (interaction.isStringSelectMenu() && interaction.customId === 'help_select') {
+        const selected = interaction.values[0];
+
+        let embed = new EmbedBuilder().setColor('#6366f1').setTimestamp();
+
+        if (selected === 'general') {
+            embed.setTitle('🌐 Comandos Generales')
+                .setDescription('`/help` - Abre este panel interactivo.\n`/ping` - Muestra la latencia del bot en ms.\n`/estado` - *(Solo Creador)* Cambia el estado del bot.');
+        } else if (selected === 'diversion') {
+            embed.setTitle('🎉 Comandos de Diversión')
+                .setDescription('`/8ball [pregunta]` - Consulta la bola 8 mágica.\n`/say [mensaje]` - El bot repite tu mensaje en un Embed.\n`/avatar [usuario]` - Muestra y descarga una foto de perfil.');
+        } else if (selected === 'moderacion') {
+            embed.setTitle('🛡️ Comandos de Moderación')
+                .setDescription('`/warn [usuario] [razon]` - Advierte a un miembro.\n`/unwarn [usuario]` - Quita la última advertencia.\n`/kick [usuario] [razon]` - Expulsa a un miembro.\n`/ban [usuario] [razon]` - Banea a un usuario.\n`/unban [id]` - Desbanea un usuario por su ID.\n`/clear [cantidad]` - Limpia mensajes del chat.\n`/modlogs [usuario]` - Revisa el expediente.');
+        } else if (selected === 'config') {
+            embed.setTitle('⚙️ Configuración del Servidor')
+                .setDescription('`/autorole add` - Asigna rol automático.\n`/autorole remove` - Desactiva rol automático.\n`/autorole list` - Ver roles automáticos.\n`/logs establecer` - Define el canal de registros.\n`/logs eliminar` - Desactiva el canal de logs.');
+        }
+
+        return interaction.reply({ embeds: [embed], ephemeral: true });
+    }
+
     if (!interaction.isChatInputCommand()) return;
     const { commandName, guildId, member, guild, user } = interaction;
+
+    // --- CÓDIGO DEL /HELP INTERACTIVO ESTILO MOKENO BOT ---
+    if (commandName === 'help') {
+        const helpEmbed = new EmbedBuilder()
+            .setTitle('📖 Menú de Ayuda — AEGIS 🪄')
+            .setDescription('**Sistema Oficial de AEGIS Bot**\n\nBienvenido al panel de ayuda interactivo. Aquí podrás explorar los comandos y configuraciones de AEGIS de forma rápida y sencilla.\n\nUtiliza el menú desplegable de abajo para navegar entre las diferentes categorías disponibles.\n\n🔗 **Enlaces de Utilidad:**\n¿Quieres llevar tu servidor al siguiente nivel? Mantén tu servidor seguro con nuestro sistema de **moderación y autoroles**.')
+            .addFields(
+                { name: '📊 Información General', value: '• **Categorías:** 4\n• **Total de Comandos:** 15', inline: false }
+            )
+            .setColor('#3b82f6')
+            .setThumbnail(client.user.displayAvatarURL())
+            .setFooter({ text: `Solicitado por: ${user.username}`, iconURL: user.displayAvatarURL() })
+            .setTimestamp();
+
+        // MENÚ DESPLEGABLE DE CATEGORÍAS
+        const selectMenu = new StringSelectMenuBuilder()
+            .setCustomId('help_select')
+            .setPlaceholder('Selecciona una categoría de comandos')
+            .addOptions([
+                { label: 'General', description: 'Comandos básicos del bot', value: 'general', emoji: '🌐' },
+                { label: 'Diversión', description: 'Juegos y comandos interactivos', value: 'diversion', emoji: '🎉' },
+                { label: 'Moderación', description: 'Herramientas para moderadores', value: 'moderacion', emoji: '🛡️' },
+                { label: 'Configuración', description: 'Logs y Autorole', value: 'config', emoji: '⚙️' },
+            ]);
+
+        // BOTONES DE ENLACES EXTERNOS
+        const buttons = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setLabel('Servidor de Soporte')
+                .setStyle(ButtonStyle.Link)
+                .setURL('https://discord.gg'),
+            new ButtonBuilder()
+                .setLabel('Sitio Web')
+                .setStyle(ButtonStyle.Link)
+                .setURL('https://google.com')
+        );
+
+        const rowSelect = new ActionRowBuilder().addComponents(selectMenu);
+
+        return interaction.reply({ embeds: [helpEmbed], components: [rowSelect, buttons] });
+    }
 
     // --- DIVERSIÓN ---
     if (commandName === '8ball') {
         const pregunta = interaction.options.getString('pregunta');
-        const respuestas = [
-            '🟢 Totalmente sí.',
-            '🟢 Es muy probable.',
-            '🟡 Tal vez, no estoy seguro.',
-            '🟡 Pregúntame de nuevo más tarde.',
-            '🔴 Definitivamente no.',
-            '🔴 Mis fuentes dicen que no.',
-            '✨ Las estrellas indican que sí.',
-            '❌ Ni lo sueñes.'
-        ];
+        const respuestas = ['🟢 Totalmente sí.', '🟢 Es muy probable.', '🟡 Tal vez, no estoy seguro.', '🟡 Pregúntame más tarde.', '🔴 Definitivamente no.', '🔴 Mis fuentes dicen que no.', '✨ Las estrellas dicen que sí.', '❌ Ni lo sueñes.'];
         const respuesta = respuestas[Math.floor(Math.random() * respuestas.length)];
 
         const embed = new EmbedBuilder()
             .setTitle('🎱 Bola 8 Mágica — AEGIS 🪄')
-            .addFields(
-                { name: '❓ Pregunta:', value: `\`${pregunta}\`` },
-                { name: '🔮 Respuesta:', value: `**${respuesta}**` }
-            )
+            .addFields({ name: '❓ Pregunta:', value: `\`${pregunta}\`` }, { name: '🔮 Respuesta:', value: `**${respuesta}**` })
             .setColor('#8b5cf6')
-            .setFooter({ text: `Consultado por ${user.tag}`, iconURL: user.displayAvatarURL() })
-            .setTimestamp();
+            .setFooter({ text: `Consultado por ${user.tag}`, iconURL: user.displayAvatarURL() }).setTimestamp();
 
         return interaction.reply({ embeds: [embed] });
     }
 
     if (commandName === 'say') {
         const mensaje = interaction.options.getString('mensaje');
-
-        const embed = new EmbedBuilder()
-            .setDescription(mensaje)
-            .setColor('#3b82f6')
-            .setFooter({ text: `Mensaje de ${user.username}`, iconURL: user.displayAvatarURL() });
-
+        const embed = new EmbedBuilder().setDescription(mensaje).setColor('#3b82f6').setFooter({ text: `Mensaje de ${user.username}`, iconURL: user.displayAvatarURL() });
         return interaction.reply({ embeds: [embed] });
     }
 
@@ -179,7 +234,7 @@ client.on('interactionCreate', async interaction => {
         return interaction.reply({ embeds: [embed] });
     }
 
-    // --- ESTADO (SOLO CREACIÓN/OWNER) ---
+    // --- ESTADO (SOLO CREADOR) ---
     if (commandName === 'estado') {
         if (user.id !== OWNER_ID) {
             return interaction.reply({ content: '❌ Solo el desarrollador/creador de AEGIS 🪄 puede cambiar el estado global.', ephemeral: true });
@@ -190,72 +245,37 @@ client.on('interactionCreate', async interaction => {
         if (estado === 'activo') {
             const embed = new EmbedBuilder()
                 .setTitle('🟢 AEGIS 🪄 — Sistema Activo')
-                .setDescription('El bot se encuentra **100% operativo**. Todos los sistemas de moderación, protección pasiva y autorole están funcionando con normalidad.')
-                .setColor('#10b981')
-                .setFooter({ text: 'AEGIS Status', iconURL: client.user.displayAvatarURL() })
-                .setTimestamp();
-
+                .setDescription('El bot se encuentra **100% operativo**.')
+                .setColor('#10b981').setTimestamp();
             return interaction.reply({ embeds: [embed] });
         }
-
         if (estado === 'mantenimiento') {
             const embed = new EmbedBuilder()
                 .setTitle('🟡 AEGIS 🪄 — En Mantenimiento')
-                .setDescription('El bot está pasando por **mantenimiento y actualizaciones**. Algunas funciones de moderación o respuestas automáticas podrían demorar temporalmente.')
-                .setColor('#f59e0b')
-                .setFooter({ text: 'AEGIS Status', iconURL: client.user.displayAvatarURL() })
-                .setTimestamp();
-
+                .setDescription('El bot está pasando por **mantenimiento y actualizaciones**.')
+                .setColor('#f59e0b').setTimestamp();
             return interaction.reply({ embeds: [embed] });
         }
-
         if (estado === 'apagado') {
             const embed = new EmbedBuilder()
                 .setTitle('🔴 AEGIS 🪄 — Fuera de Servicio')
-                .setDescription('El bot ha sido **puesto fuera de línea**. Todos los módulos pasarán a estar pausados hasta nuevo aviso.')
-                .setColor('#ef4444')
-                .setFooter({ text: 'AEGIS Status', iconURL: client.user.displayAvatarURL() })
-                .setTimestamp();
-
+                .setDescription('El bot ha sido **puesto fuera de línea**.')
+                .setColor('#ef4444').setTimestamp();
             return interaction.reply({ content: '@everyone', embeds: [embed] });
         }
     }
 
     // --- PERMISOS MODERACIÓN ---
     if (commandName !== 'ping' && commandName !== 'help' && !member.permissions.has('ModerateMembers') && !member.permissions.has('Administrator')) {
-        return interaction.reply({ content: '❌ No tienes permisos para usar los comandos de moderación de AEGIS 🪄.', ephemeral: true });
+        return interaction.reply({ content: '❌ No tienes permisos para usar la moderación de AEGIS 🪄.', ephemeral: true });
     }
 
     if (commandName === 'ping') {
         const pingEmbed = new EmbedBuilder()
             .setTitle('📡 Latencia del Sistema AEGIS 🪄')
-            .addFields(
-                { name: '⚡ Latencia de Bot', value: `\`${client.ws.ping}ms\``, inline: true },
-                { name: '🟢 Estado', value: '`Óptimo 24/7`', inline: true }
-            )
-            .setColor('#10b981')
-            .setFooter({ text: 'AEGIS Guard', iconURL: client.user.displayAvatarURL() });
-
+            .addFields({ name: '⚡ Latencia de Bot', value: `\`${client.ws.ping}ms\``, inline: true }, { name: '🟢 Estado', value: '`Óptimo 24/7`', inline: true })
+            .setColor('#10b981');
         return interaction.reply({ embeds: [pingEmbed], ephemeral: true });
-    }
-
-    if (commandName === 'help') {
-        const helpEmbed = new EmbedBuilder()
-            .setTitle('🪄 Panel Principal — AEGIS System')
-            .setDescription('Bienvenido al centro de control de **AEGIS**. Lista de comandos disponibles:')
-            .setColor('#6366f1')
-            .setThumbnail(client.user.displayAvatarURL())
-            .addFields(
-                { name: '🌐 General', value: '`/help` - Muestra este panel elegante.\n`/ping` - Revisa el estado y latencia.' },
-                { name: '🎉 Diversión', value: '`/8ball` - Pregunta a la bola mágica.\n`/say` - Envia un mensaje en Embed.\n`/avatar` - Muestra y descarga fotos de perfil.' },
-                { name: '🎭 Autorole', value: '`/autorole add` - Asigna rol automático.\n`/autorole remove` - Desactiva rol automático.\n`/autorole list` - Muestra roles configurados.' },
-                { name: '🛡️ Moderación', value: '`/clear` - Limpieza de mensajes.\n`/warn` | `/unwarn` - Advertencias.\n`/kick` | `/ban` | `/unban` - Expulsiones y baneos.\n`/modlogs` - Expediente histórico.' },
-                { name: '⚙️ Configuración', value: '`/logs establecer` - Define canal de registros.\n`/logs eliminar` - Desactiva canal de registros.' }
-            )
-            .setFooter({ text: 'AEGIS 🪄 — Moderación Eficiente y Elegante', iconURL: client.user.displayAvatarURL() })
-            .setTimestamp();
-
-        return interaction.reply({ embeds: [helpEmbed] });
     }
 
     if (commandName === 'autorole') {
@@ -268,46 +288,18 @@ client.on('interactionCreate', async interaction => {
             const role = interaction.options.getRole('role');
             db.autoroles[guildId][type] = role.id;
             writeDB(db);
-
-            const embed = new EmbedBuilder()
-                .setTitle('🎭 Configuración de Autorole')
-                .setDescription('Se ha established con éxito la asignación automática de rol.')
-                .addFields(
-                    { name: '👥 Tipo de Miembro', value: type === 'human' ? '`Humanos 👤`' : '`Bots 🤖`', inline: true },
-                    { name: '🎖️ Rol Asignado', value: `${role}`, inline: true }
-                )
-                .setColor('#10b981')
-                .setTimestamp();
-
-            return interaction.reply({ embeds: [embed] });
+            return interaction.reply({ embeds: [new EmbedBuilder().setTitle('🎭 Autorole Configurado').setDescription(`Rol ${role} asignado a ${type}.`).setColor('#10b981')] });
         }
         if (sub === 'remove') {
             const type = interaction.options.getString('type');
             delete db.autoroles[guildId][type];
             writeDB(db);
-
-            const embed = new EmbedBuilder()
-                .setTitle('🗑️ Autorole Desactivado')
-                .setDescription(`Se ha eliminado el rol automático para **${type === 'human' ? 'Humanos 👤' : 'Bots 🤖'}**.`)
-                .setColor('#ef4444')
-                .setTimestamp();
-
-            return interaction.reply({ embeds: [embed] });
+            return interaction.reply({ embeds: [new EmbedBuilder().setTitle('🗑️ Autorole Eliminado').setColor('#ef4444')] });
         }
         if (sub === 'list') {
             const human = db.autoroles[guildId].human ? `<@&${db.autoroles[guildId].human}>` : '`No configurado`';
             const bot = db.autoroles[guildId].bot ? `<@&${db.autoroles[guildId].bot}>` : '`No configurado`';
-
-            const embed = new EmbedBuilder()
-                .setTitle('🎭 Roles Automáticos Activos')
-                .addFields(
-                    { name: '👤 Humanos', value: human, inline: true },
-                    { name: '🤖 Bots', value: bot, inline: true }
-                )
-                .setColor('#6366f1')
-                .setTimestamp();
-
-            return interaction.reply({ embeds: [embed] });
+            return interaction.reply({ embeds: [new EmbedBuilder().setTitle('🎭 Roles Automáticos').addFields({ name: '👤 Humanos', value: human }, { name: '🤖 Bots', value: bot }).setColor('#6366f1')] });
         }
     }
 
@@ -318,25 +310,12 @@ client.on('interactionCreate', async interaction => {
             const ch = interaction.options.getChannel('canal');
             db.logsChannels[guildId] = ch.id;
             writeDB(db);
-
-            const embed = new EmbedBuilder()
-                .setTitle('⚙️ Canal de Registros Establecido')
-                .setDescription(`Alertas dirigidas a ${ch}.`)
-                .setColor('#10b981')
-                .setTimestamp();
-
-            return interaction.reply({ embeds: [embed] });
+            return interaction.reply({ embeds: [new EmbedBuilder().setTitle('⚙️ Canal de Registros Establecido').setDescription(`Logs dirigidos a ${ch}.`).setColor('#10b981')] });
         }
         if (sub === 'eliminar') {
             delete db.logsChannels[guildId];
             writeDB(db);
-
-            const embed = new EmbedBuilder()
-                .setTitle('🗑️ Canal de Registros Desactivado')
-                .setColor('#ef4444')
-                .setTimestamp();
-
-            return interaction.reply({ embeds: [embed] });
+            return interaction.reply({ embeds: [new EmbedBuilder().setTitle('🗑️ Canal de Logs Desactivado').setColor('#ef4444')] });
         }
     }
 
@@ -344,43 +323,15 @@ client.on('interactionCreate', async interaction => {
         const cant = interaction.options.getInteger('cantidad');
         await interaction.deferReply({ ephemeral: true });
         const deleted = await interaction.channel.bulkDelete(cant, true);
-
-        const logEmbed = new EmbedBuilder()
-            .setTitle('🧹 Registros: Limpieza de Mensajes')
-            .addFields(
-                { name: '🛡️ Moderador', value: `${interaction.user}`, inline: true },
-                { name: '💬 Canal', value: `${interaction.channel}`, inline: true },
-                { name: '🗑️ Cantidad Borrada', value: `\`${deleted.size}\` mensajes`, inline: true }
-            )
-            .setColor('#3b82f6')
-            .setTimestamp();
-
-        await sendLog(guild, logEmbed);
-
-        const replyEmbed = new EmbedBuilder()
-            .setTitle('🧹 Limpieza Completada')
-            .setDescription(`Se eliminaron **${deleted.size}** mensajes correctamente.`)
-            .setColor('#10b981');
-
-        return interaction.editReply({ embeds: [replyEmbed] });
+        await sendLog(guild, new EmbedBuilder().setTitle('🧹 Limpieza').addFields({ name: 'Moderador', value: `${user}` }, { name: 'Cantidad', value: `${deleted.size}` }).setColor('#3b82f6'));
+        return interaction.editReply({ embeds: [new EmbedBuilder().setTitle('🧹 Limpieza').setDescription(`Se borraron ${deleted.size} mensajes.`).setColor('#10b981')] });
     }
 
     if (commandName === 'warn') {
         const target = interaction.options.getUser('usuario');
         const razon = interaction.options.getString('razon');
         addModLog(guildId, target.id, 'WARN', razon, interaction.user.tag);
-
-        const warnEmbed = new EmbedBuilder()
-            .setTitle('⚠️ Sanción: Advertencia Emitida')
-            .setThumbnail(target.displayAvatarURL({ dynamic: true }))
-            .addFields(
-                { name: '👤 Miembro Sancionado', value: `${target} (\`${target.id}\`)`, inline: true },
-                { name: '🛡️ Moderador', value: `${interaction.user}`, inline: true },
-                { name: '📄 Razón', value: `\`\`\`${razon}\`\`\`` }
-            )
-            .setColor('#f59e0b')
-            .setTimestamp();
-
+        const warnEmbed = new EmbedBuilder().setTitle('⚠️ Advertencia Emitida').addFields({ name: 'Usuario', value: `${target}` }, { name: 'Razón', value: razon }).setColor('#f59e0b');
         await sendLog(guild, warnEmbed);
         return interaction.reply({ embeds: [warnEmbed] });
     }
@@ -390,115 +341,39 @@ client.on('interactionCreate', async interaction => {
         const db = readDB();
         const logs = db.userLogs[guildId]?.[target.id] || [];
         const idx = logs.map((l, i) => l.tipo === 'WARN' ? i : null).filter(v => v !== null).pop();
-
-        if (idx === undefined) return interaction.reply({ content: `❌ **${target.username}** no tiene advertencias.`, ephemeral: true });
-
-        const removida = logs.splice(idx, 1)[0];
+        if (idx === undefined) return interaction.reply({ content: `❌ ${target.username} no tiene advertencias.`, ephemeral: true });
+        logs.splice(idx, 1);
         writeDB(db);
-
-        const embed = new EmbedBuilder()
-            .setTitle('🛡️ Sanción Removida: Advertencia Retirada')
-            .setThumbnail(target.displayAvatarURL({ dynamic: true }))
-            .addFields(
-                { name: '👤 Usuario', value: `${target}`, inline: true },
-                { name: '🛡️ Moderador', value: `${interaction.user}`, inline: true },
-                { name: '📄 Razón Original', value: `\`${removida.razon}\`` }
-            )
-            .setColor('#10b981')
-            .setTimestamp();
-
-        await sendLog(guild, embed);
-        return interaction.reply({ embeds: [embed] });
+        return interaction.reply({ embeds: [new EmbedBuilder().setTitle('🛡️ Advertencia Retirada').setColor('#10b981')] });
     }
 
     if (commandName === 'kick') {
         const targetUser = interaction.options.getUser('usuario');
-        const razon = interaction.options.getString('razon') || 'Sin razón especificada';
-        const member = await interaction.guild.members.fetch(targetUser.id).catch(() => null);
-
-        if (!member || !member.kickable) return interaction.reply({ content: '❌ No puedo expulsar a este usuario por jerarquía.', ephemeral: true });
-
+        const razon = interaction.options.getString('razon') || 'Sin razón';
+        const memberTarget = await interaction.guild.members.fetch(targetUser.id).catch(() => null);
+        if (!memberTarget || !memberTarget.kickable) return interaction.reply({ content: '❌ No puedo expulsar a este usuario.', ephemeral: true });
         addModLog(guildId, targetUser.id, 'KICK', razon, interaction.user.tag);
-        await member.kick(razon);
-
-        const logEmbed = new EmbedBuilder()
-            .setTitle('👢 Registros: Usuario Expulsado')
-            .setThumbnail(targetUser.displayAvatarURL({ dynamic: true }))
-            .addFields(
-                { name: '👤 Usuario Expulsado', value: `${targetUser.tag} (\`${targetUser.id}\`)`, inline: true },
-                { name: '🛡️ Moderador', value: `${interaction.user}`, inline: true },
-                { name: '📄 Razón', value: `\`\`\`${razon}\`\`\`` }
-            )
-            .setColor('#ef4444')
-            .setTimestamp();
-
-        await sendLog(guild, logEmbed);
-
-        const replyEmbed = new EmbedBuilder()
-            .setTitle('👢 Expulsión Ejecutada')
-            .setDescription(`**${targetUser.tag}** fue expulsado del servidor.`)
-            .setColor('#ef4444');
-
-        return interaction.reply({ embeds: [replyEmbed] });
+        await memberTarget.kick(razon);
+        return interaction.reply({ embeds: [new EmbedBuilder().setTitle('👢 Expulsión Ejecutada').setDescription(`${targetUser.tag} fue expulsado.`).setColor('#ef4444')] });
     }
 
     if (commandName === 'ban') {
         const targetUser = interaction.options.getUser('usuario');
-        const razon = interaction.options.getString('razon') || 'Sin razón especificada';
-        const member = await interaction.guild.members.fetch(targetUser.id).catch(() => null);
-
-        if (!member || !member.bannable) return interaction.reply({ content: '❌ No puedo banear a este usuario por jerarquía.', ephemeral: true });
-
+        const razon = interaction.options.getString('razon') || 'Sin razón';
+        const memberTarget = await interaction.guild.members.fetch(targetUser.id).catch(() => null);
+        if (!memberTarget || !memberTarget.bannable) return interaction.reply({ content: '❌ No puedo banear a este usuario.', ephemeral: true });
         addModLog(guildId, targetUser.id, 'BAN', razon, interaction.user.tag);
-        await member.ban({ reason: razon });
-
-        const logEmbed = new EmbedBuilder()
-            .setTitle('🔨 Registros: Baneo Permanente')
-            .setThumbnail(targetUser.displayAvatarURL({ dynamic: true }))
-            .addFields(
-                { name: '👤 Usuario Baneado', value: `${targetUser.tag} (\`${targetUser.id}\`)`, inline: true },
-                { name: '🛡️ Moderador', value: `${interaction.user}`, inline: true },
-                { name: '📄 Razón', value: `\`\`\`${razon}\`\`\`` }
-            )
-            .setColor('#b91c1c')
-            .setTimestamp();
-
-        await sendLog(guild, logEmbed);
-
-        const replyEmbed = new EmbedBuilder()
-            .setTitle('🔨 Baneo Ejecutado')
-            .setDescription(`**${targetUser.tag}** fue baneado del servidor.`)
-            .setColor('#b91c1c');
-
-        return interaction.reply({ embeds: [replyEmbed] });
+        await memberTarget.ban({ reason: razon });
+        return interaction.reply({ embeds: [new EmbedBuilder().setTitle('🔨 Baneo Ejecutado').setDescription(`${targetUser.tag} fue baneado.`).setColor('#b91c1c')] });
     }
 
     if (commandName === 'unban') {
         const userId = interaction.options.getString('userid');
-        const razon = interaction.options.getString('razon') || 'Sin razón especificada';
-
+        const razon = interaction.options.getString('razon') || 'Sin razón';
         try {
             await guild.members.unban(userId, razon);
             addModLog(guildId, userId, 'UNBAN', razon, interaction.user.tag);
-
-            const logEmbed = new EmbedBuilder()
-                .setTitle('🔓 Registros: Baneo Removido')
-                .addFields(
-                    { name: '👤 ID del Usuario', value: `\`${userId}\``, inline: true },
-                    { name: '🛡️ Moderador', value: `${interaction.user}`, inline: true },
-                    { name: '📄 Razón', value: `\`${razon}\`` }
-                )
-                .setColor('#10b981')
-                .setTimestamp();
-
-            await sendLog(guild, logEmbed);
-
-            const replyEmbed = new EmbedBuilder()
-                .setTitle('🔓 Desbaneo Exitoso')
-                .setDescription(`El usuario con ID \`${userId}\` ha sido desbaneado.`)
-                .setColor('#10b981');
-
-            return interaction.reply({ embeds: [replyEmbed] });
+            return interaction.reply({ embeds: [new EmbedBuilder().setTitle('🔓 Desbaneo Exitoso').setDescription(`ID \`${userId}\` desbaneado.`).setColor('#10b981')] });
         } catch (e) {
             return interaction.reply({ content: '❌ Error al desbanear. Verifica la ID.', ephemeral: true });
         }
@@ -510,32 +385,13 @@ client.on('interactionCreate', async interaction => {
         const logs = db.userLogs[guildId]?.[target.id] || [];
 
         if (logs.length === 0) {
-            const cleanEmbed = new EmbedBuilder()
-                .setTitle(`📋 Expediente — ${target.username}`)
-                .setDescription(`✅ Este usuario tiene un expediente **completamente limpio**.`)
-                .setThumbnail(target.displayAvatarURL({ dynamic: true }))
-                .setColor('#10b981')
-                .setTimestamp();
-
-            return interaction.reply({ embeds: [cleanEmbed] });
+            return interaction.reply({ embeds: [new EmbedBuilder().setTitle(`📋 Expediente — ${target.username}`).setDescription('✅ Expediente **completamente limpio**.').setColor('#10b981')] });
         }
 
-        const warns = logs.filter(l => l.tipo === 'WARN').length;
-        const kicks = logs.filter(l => l.tipo === 'KICK').length;
-        const bans = logs.filter(l => l.tipo === 'BAN').length;
-
-        const embed = new EmbedBuilder()
-            .setTitle(`📋 Expediente de Moderación — ${target.username}`)
-            .setDescription(`**Resumen de Historial Activo:**\n⚠️ Warns: \`${warns}\` | 👢 Kicks: \`${kicks}\` | 🔨 Bans: \`${bans}\``)
-            .setColor('#6366f1')
-            .setThumbnail(target.displayAvatarURL({ dynamic: true }))
-            .setTimestamp();
-
+        const embed = new EmbedBuilder().setTitle(`📋 Expediente — ${target.username}`).setColor('#6366f1');
         logs.slice(-10).reverse().forEach(l => {
-            let emoji = l.tipo === 'KICK' ? '👢' : l.tipo === 'BAN' ? '🔨' : l.tipo === 'UNBAN' ? '🔓' : '⚠️';
-            embed.addFields({ name: `${emoji} [${l.tipo}] — ${l.fecha}`, value: `**Razón:** ${l.razon}\n**Moderador:** ${l.por}` });
+            embed.addFields({ name: `[${l.tipo}] — ${l.fecha}`, value: `**Razón:** ${l.razon}\n**Mod:** ${l.por}` });
         });
-
         return interaction.reply({ embeds: [embed] });
     }
 });

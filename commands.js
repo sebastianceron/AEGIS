@@ -7,7 +7,7 @@ const commandsData = [
 
     new SlashCommandBuilder()
         .setName('help')
-        .setDescription('Muestra el panel de ayuda principal de AEGIS 🪄'),
+        .setDescription('Muestra el panel de ayuda interactivo de AEGIS 🪄'),
 
     new SlashCommandBuilder()
         .setName('estado')
