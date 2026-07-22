@@ -123,7 +123,7 @@ client.on('interactionCreate', async interaction => {
     if (!interaction.isChatInputCommand()) return;
     const { commandName, guildId, member, guild } = interaction;
 
-    if (commandName !== 'ping' && commandName !== 'help' && !member.permissions.has('ModerateMembers') && !member.permissions.has('Administrator')) {
+    if (commandName !== 'ping' && commandName !== 'help' && commandName !== 'estado' && !member.permissions.has('ModerateMembers') && !member.permissions.has('Administrator')) {
         return interaction.reply({ content: '❌ No tienes permisos para usar la moderación de AEGIS 🪄.', ephemeral: true });
     }
 
@@ -140,18 +140,54 @@ client.on('interactionCreate', async interaction => {
         return interaction.reply({ embeds: [pingEmbed], ephemeral: true });
     }
 
+    if (commandName === 'estado') {
+        const estado = interaction.options.getString('opcion');
+
+        if (estado === 'activo') {
+            const embed = new EmbedBuilder()
+                .setTitle('🟢 AEGIS 🪄 — Sistema Activo')
+                .setDescription('El bot se encuentra **100% operativo**. Todos los sistemas de moderación, protección pasiva y autorole están funcionando con normalidad.')
+                .setColor('#10b981')
+                .setFooter({ text: 'AEGIS Status', iconURL: client.user.displayAvatarURL() })
+                .setTimestamp();
+
+            return interaction.reply({ embeds: [embed] });
+        }
+
+        if (estado === 'mantenimiento') {
+            const embed = new EmbedBuilder()
+                .setTitle('🟡 AEGIS 🪄 — En Mantenimiento')
+                .setDescription('El bot está pasando por **mantenimiento y actualizaciones**. Algunas funciones de moderación o respuestas automáticas podrían demorar temporalmente.')
+                .setColor('#f59e0b')
+                .setFooter({ text: 'AEGIS Status', iconURL: client.user.displayAvatarURL() })
+                .setTimestamp();
+
+            return interaction.reply({ embeds: [embed] });
+        }
+
+        if (estado === 'apagado') {
+            const embed = new EmbedBuilder()
+                .setTitle('🔴 AEGIS 🪄 — Fuera de Servicio')
+                .setDescription('El bot ha sido **puesto fuera de línea**. Todos los módulos pasarán a estar pausados hasta nuevo aviso.')
+                .setColor('#ef4444')
+                .setFooter({ text: 'AEGIS Status', iconURL: client.user.displayAvatarURL() })
+                .setTimestamp();
+
+            return interaction.reply({ content: '@everyone', embeds: [embed] });
+        }
+    }
+
     if (commandName === 'help') {
         const helpEmbed = new EmbedBuilder()
             .setTitle('🪄 Panel Principal — AEGIS System')
-            .setDescription('Bienvenido al centro de control de **AEGIS**. Aquí tienes la lista de comandos disponibles para administrar y proteger tu servidor.')
+            .setDescription('Bienvenido al centro de control de **AEGIS**. Lista de comandos disponibles:')
             .setColor('#6366f1')
             .setThumbnail(client.user.displayAvatarURL())
             .addFields(
-                { name: '🌐 General', value: '`/help` - Muestra este panel elegante.\n`/ping` - Revisa el estado y latencia.' },
-                { name: '🎭 Autorole', value: '`/autorole add` - Asigna un rol automático a personas o bots.\n`/autorole remove` - Desactiva un rol automático.\n`/autorole list` - Muestra los roles configurados.' },
-                { name: '🛡️ Moderación', value: '`/clear` - Limpieza rápida de chat.\n`/warn` | `/unwarn` - Gestión de advertencias.\n`/kick` | `/ban` | `/unban` - Expulsiones y baneos.\n`/modlogs` - Expediente histórico de sanciones.' },
-                { name: '⚙️ Configuración', value: '`/logs establecer` - Define el canal de registros.\n`/logs eliminar` - Desactiva el canal de registros.' },
-                { name: '⚡ AutoMod Pasivo', value: '• **Filtro Anti-Scam** (Links falsos de Nitro)\n• **Filtro Anti-Invitaciones** (discord.gg)\n• **Filtro Anti-Menciones** (+5 etiquetas)' }
+                { name: '🌐 General', value: '`/help` - Muestra este panel elegante.\n`/ping` - Revisa el estado y latencia.\n`/estado` - Cambia/anuncia el estado operativo del bot.' },
+                { name: '🎭 Autorole', value: '`/autorole add` - Asigna rol automático.\n`/autorole remove` - Desactiva un rol automático.\n`/autorole list` - Muestra roles configurados.' },
+                { name: '🛡️ Moderación', value: '`/clear` - Limpieza rápida de chat.\n`/warn` | `/unwarn` - Gestión de advertencias.\n`/kick` | `/ban` | `/unban` - Expulsiones y baneos.\n`/modlogs` - Expediente histórico.' },
+                { name: '⚙️ Configuración', value: '`/logs establecer` - Define el canal de registros.\n`/logs eliminar` - Desactiva el canal de registros.' }
             )
             .setFooter({ text: 'AEGIS 🪄 — Moderación Eficiente y Elegante', iconURL: client.user.displayAvatarURL() })
             .setTimestamp();
@@ -172,13 +208,12 @@ client.on('interactionCreate', async interaction => {
 
             const embed = new EmbedBuilder()
                 .setTitle('🎭 Configuración de Autorole')
-                .setDescription('Se ha establecido con éxito la asignación automática de rol para los nuevos miembros.')
+                .setDescription('Se ha establecido con éxito la asignación automática de rol.')
                 .addFields(
                     { name: '👥 Tipo de Miembro', value: type === 'human' ? '`Humanos 👤`' : '`Bots 🤖`', inline: true },
                     { name: '🎖️ Rol Asignado', value: `${role}`, inline: true }
                 )
                 .setColor('#10b981')
-                .setFooter({ text: 'AEGIS Autorole', iconURL: client.user.displayAvatarURL() })
                 .setTimestamp();
 
             return interaction.reply({ embeds: [embed] });
@@ -202,13 +237,11 @@ client.on('interactionCreate', async interaction => {
 
             const embed = new EmbedBuilder()
                 .setTitle('🎭 Roles Automáticos Activos')
-                .setDescription('Estos son los roles que se otorgan automáticamente cuando entra un nuevo usuario.')
                 .addFields(
                     { name: '👤 Humanos', value: human, inline: true },
                     { name: '🤖 Bots', value: bot, inline: true }
                 )
                 .setColor('#6366f1')
-                .setFooter({ text: 'AEGIS Autorole System', iconURL: client.user.displayAvatarURL() })
                 .setTimestamp();
 
             return interaction.reply({ embeds: [embed] });
@@ -225,7 +258,7 @@ client.on('interactionCreate', async interaction => {
 
             const embed = new EmbedBuilder()
                 .setTitle('⚙️ Canal de Registros Establecido')
-                .setDescription(`A partir de ahora, todas las alertas de moderación se enviarán a ${ch}.`)
+                .setDescription(`Alertas dirigidas a ${ch}.`)
                 .setColor('#10b981')
                 .setTimestamp();
 
@@ -237,7 +270,6 @@ client.on('interactionCreate', async interaction => {
 
             const embed = new EmbedBuilder()
                 .setTitle('🗑️ Canal de Registros Desactivado')
-                .setDescription('Se han desactivado los reportes en vivo para este servidor.')
                 .setColor('#ef4444')
                 .setTimestamp();
 
@@ -284,7 +316,6 @@ client.on('interactionCreate', async interaction => {
                 { name: '📄 Razón', value: `\`\`\`${razon}\`\`\`` }
             )
             .setColor('#f59e0b')
-            .setFooter({ text: 'AEGIS Sanctions', iconURL: client.user.displayAvatarURL() })
             .setTimestamp();
 
         await sendLog(guild, warnEmbed);
@@ -297,7 +328,7 @@ client.on('interactionCreate', async interaction => {
         const logs = db.userLogs[guildId]?.[target.id] || [];
         const idx = logs.map((l, i) => l.tipo === 'WARN' ? i : null).filter(v => v !== null).pop();
 
-        if (idx === undefined) return interaction.reply({ content: `❌ **${target.username}** no tiene advertencias registradas.`, ephemeral: true });
+        if (idx === undefined) return interaction.reply({ content: `❌ **${target.username}** no tiene advertencias.`, ephemeral: true });
 
         const removida = logs.splice(idx, 1)[0];
         writeDB(db);
@@ -322,7 +353,7 @@ client.on('interactionCreate', async interaction => {
         const razon = interaction.options.getString('razon') || 'Sin razón especificada';
         const member = await interaction.guild.members.fetch(targetUser.id).catch(() => null);
 
-        if (!member || !member.kickable) return interaction.reply({ content: '❌ No puedo expulsar a este usuario por jerarquía de roles.', ephemeral: true });
+        if (!member || !member.kickable) return interaction.reply({ content: '❌ No puedo expulsar a este usuario por jerarquía.', ephemeral: true });
 
         addModLog(guildId, targetUser.id, 'KICK', razon, interaction.user.tag);
         await member.kick(razon);
@@ -353,7 +384,7 @@ client.on('interactionCreate', async interaction => {
         const razon = interaction.options.getString('razon') || 'Sin razón especificada';
         const member = await interaction.guild.members.fetch(targetUser.id).catch(() => null);
 
-        if (!member || !member.bannable) return interaction.reply({ content: '❌ No puedo banear a este usuario por jerarquía de roles.', ephemeral: true });
+        if (!member || !member.bannable) return interaction.reply({ content: '❌ No puedo banear a este usuario por jerarquía.', ephemeral: true });
 
         addModLog(guildId, targetUser.id, 'BAN', razon, interaction.user.tag);
         await member.ban({ reason: razon });
@@ -406,7 +437,7 @@ client.on('interactionCreate', async interaction => {
 
             return interaction.reply({ embeds: [replyEmbed] });
         } catch (e) {
-            return interaction.reply({ content: '❌ Error al desbanear. Verifica que la ID sea correcta.', ephemeral: true });
+            return interaction.reply({ content: '❌ Error al desbanear. Verifica la ID.', ephemeral: true });
         }
     }
 
@@ -418,7 +449,7 @@ client.on('interactionCreate', async interaction => {
         if (logs.length === 0) {
             const cleanEmbed = new EmbedBuilder()
                 .setTitle(`📋 Expediente — ${target.username}`)
-                .setDescription(`✅ Este usuario tiene un expediente **completamente limpio**. Sin registro de sanciones.`)
+                .setDescription(`✅ Este usuario tiene un expediente **completamente limpio**.`)
                 .setThumbnail(target.displayAvatarURL({ dynamic: true }))
                 .setColor('#10b981')
                 .setTimestamp();
@@ -435,7 +466,6 @@ client.on('interactionCreate', async interaction => {
             .setDescription(`**Resumen de Historial Activo:**\n⚠️ Warns: \`${warns}\` | 👢 Kicks: \`${kicks}\` | 🔨 Bans: \`${bans}\``)
             .setColor('#6366f1')
             .setThumbnail(target.displayAvatarURL({ dynamic: true }))
-            .setFooter({ text: 'AEGIS Sanction History', iconURL: client.user.displayAvatarURL() })
             .setTimestamp();
 
         logs.slice(-10).reverse().forEach(l => {
