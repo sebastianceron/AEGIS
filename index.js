@@ -9,6 +9,9 @@ const fs = require('fs');
 const path = require('path');
 const { commandsData } = require('./commands');
 
+// TU ID DE CREADOR CONFIGURADA
+const OWNER_ID = process.env.OWNER_ID || '1518292336214544547';
+
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -121,26 +124,67 @@ client.on('messageCreate', async message => {
 });
 client.on('interactionCreate', async interaction => {
     if (!interaction.isChatInputCommand()) return;
-    const { commandName, guildId, member, guild } = interaction;
+    const { commandName, guildId, member, guild, user } = interaction;
 
-    if (commandName !== 'ping' && commandName !== 'help' && commandName !== 'estado' && !member.permissions.has('ModerateMembers') && !member.permissions.has('Administrator')) {
-        return interaction.reply({ content: '❌ No tienes permisos para usar la moderación de AEGIS 🪄.', ephemeral: true });
-    }
+    // --- DIVERSIÓN ---
+    if (commandName === '8ball') {
+        const pregunta = interaction.options.getString('pregunta');
+        const respuestas = [
+            '🟢 Totalmente sí.',
+            '🟢 Es muy probable.',
+            '🟡 Tal vez, no estoy seguro.',
+            '🟡 Pregúntame de nuevo más tarde.',
+            '🔴 Definitivamente no.',
+            '🔴 Mis fuentes dicen que no.',
+            '✨ Las estrellas indican que sí.',
+            '❌ Ni lo sueñes.'
+        ];
+        const respuesta = respuestas[Math.floor(Math.random() * respuestas.length)];
 
-    if (commandName === 'ping') {
-        const pingEmbed = new EmbedBuilder()
-            .setTitle('📡 Latencia del Sistema AEGIS 🪄')
+        const embed = new EmbedBuilder()
+            .setTitle('🎱 Bola 8 Mágica — AEGIS 🪄')
             .addFields(
-                { name: '⚡ Latencia de Bot', value: `\`${client.ws.ping}ms\``, inline: true },
-                { name: '🟢 Estado', value: '`Óptimo 24/7`', inline: true }
+                { name: '❓ Pregunta:', value: `\`${pregunta}\`` },
+                { name: '🔮 Respuesta:', value: `**${respuesta}**` }
             )
-            .setColor('#10b981')
-            .setFooter({ text: 'AEGIS Guard', iconURL: client.user.displayAvatarURL() });
+            .setColor('#8b5cf6')
+            .setFooter({ text: `Consultado por ${user.tag}`, iconURL: user.displayAvatarURL() })
+            .setTimestamp();
 
-        return interaction.reply({ embeds: [pingEmbed], ephemeral: true });
+        return interaction.reply({ embeds: [embed] });
     }
 
+    if (commandName === 'say') {
+        const mensaje = interaction.options.getString('mensaje');
+
+        const embed = new EmbedBuilder()
+            .setDescription(mensaje)
+            .setColor('#3b82f6')
+            .setFooter({ text: `Mensaje de ${user.username}`, iconURL: user.displayAvatarURL() });
+
+        return interaction.reply({ embeds: [embed] });
+    }
+
+    if (commandName === 'avatar') {
+        const targetUser = interaction.options.getUser('usuario') || user;
+        const avatarUrl = targetUser.displayAvatarURL({ dynamic: true, size: 1024 });
+
+        const embed = new EmbedBuilder()
+            .setTitle(`🖼️ Avatar de ${targetUser.username}`)
+            .setImage(avatarUrl)
+            .setColor('#ec4899')
+            .setDescription(`[👉 Haz clic aquí para descargar el avatar en alta calidad](${avatarUrl})`)
+            .setTimestamp();
+
+        return interaction.reply({ embeds: [embed] });
+    }
+
+    // --- ESTADO (SOLO CREACIÓN/OWNER) ---
     if (commandName === 'estado') {
+        if (user.id !== OWNER_ID) {
+            return interaction.reply({ content: '❌ Solo el desarrollador/creador de AEGIS 🪄 puede cambiar el estado global.', ephemeral: true });
+        }
+
         const estado = interaction.options.getString('opcion');
 
         if (estado === 'activo') {
@@ -177,6 +221,24 @@ client.on('interactionCreate', async interaction => {
         }
     }
 
+    // --- PERMISOS MODERACIÓN ---
+    if (commandName !== 'ping' && commandName !== 'help' && !member.permissions.has('ModerateMembers') && !member.permissions.has('Administrator')) {
+        return interaction.reply({ content: '❌ No tienes permisos para usar los comandos de moderación de AEGIS 🪄.', ephemeral: true });
+    }
+
+    if (commandName === 'ping') {
+        const pingEmbed = new EmbedBuilder()
+            .setTitle('📡 Latencia del Sistema AEGIS 🪄')
+            .addFields(
+                { name: '⚡ Latencia de Bot', value: `\`${client.ws.ping}ms\``, inline: true },
+                { name: '🟢 Estado', value: '`Óptimo 24/7`', inline: true }
+            )
+            .setColor('#10b981')
+            .setFooter({ text: 'AEGIS Guard', iconURL: client.user.displayAvatarURL() });
+
+        return interaction.reply({ embeds: [pingEmbed], ephemeral: true });
+    }
+
     if (commandName === 'help') {
         const helpEmbed = new EmbedBuilder()
             .setTitle('🪄 Panel Principal — AEGIS System')
@@ -184,10 +246,11 @@ client.on('interactionCreate', async interaction => {
             .setColor('#6366f1')
             .setThumbnail(client.user.displayAvatarURL())
             .addFields(
-                { name: '🌐 General', value: '`/help` - Muestra este panel elegante.\n`/ping` - Revisa el estado y latencia.\n`/estado` - Cambia/anuncia el estado operativo del bot.' },
-                { name: '🎭 Autorole', value: '`/autorole add` - Asigna rol automático.\n`/autorole remove` - Desactiva un rol automático.\n`/autorole list` - Muestra roles configurados.' },
-                { name: '🛡️ Moderación', value: '`/clear` - Limpieza rápida de chat.\n`/warn` | `/unwarn` - Gestión de advertencias.\n`/kick` | `/ban` | `/unban` - Expulsiones y baneos.\n`/modlogs` - Expediente histórico.' },
-                { name: '⚙️ Configuración', value: '`/logs establecer` - Define el canal de registros.\n`/logs eliminar` - Desactiva el canal de registros.' }
+                { name: '🌐 General', value: '`/help` - Muestra este panel elegante.\n`/ping` - Revisa el estado y latencia.' },
+                { name: '🎉 Diversión', value: '`/8ball` - Pregunta a la bola mágica.\n`/say` - Envia un mensaje en Embed.\n`/avatar` - Muestra y descarga fotos de perfil.' },
+                { name: '🎭 Autorole', value: '`/autorole add` - Asigna rol automático.\n`/autorole remove` - Desactiva rol automático.\n`/autorole list` - Muestra roles configurados.' },
+                { name: '🛡️ Moderación', value: '`/clear` - Limpieza de mensajes.\n`/warn` | `/unwarn` - Advertencias.\n`/kick` | `/ban` | `/unban` - Expulsiones y baneos.\n`/modlogs` - Expediente histórico.' },
+                { name: '⚙️ Configuración', value: '`/logs establecer` - Define canal de registros.\n`/logs eliminar` - Desactiva canal de registros.' }
             )
             .setFooter({ text: 'AEGIS 🪄 — Moderación Eficiente y Elegante', iconURL: client.user.displayAvatarURL() })
             .setTimestamp();
@@ -208,7 +271,7 @@ client.on('interactionCreate', async interaction => {
 
             const embed = new EmbedBuilder()
                 .setTitle('🎭 Configuración de Autorole')
-                .setDescription('Se ha establecido con éxito la asignación automática de rol.')
+                .setDescription('Se ha established con éxito la asignación automática de rol.')
                 .addFields(
                     { name: '👥 Tipo de Miembro', value: type === 'human' ? '`Humanos 👤`' : '`Bots 🤖`', inline: true },
                     { name: '🎖️ Rol Asignado', value: `${role}`, inline: true }

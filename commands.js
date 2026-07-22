@@ -11,7 +11,7 @@ const commandsData = [
 
     new SlashCommandBuilder()
         .setName('estado')
-        .setDescription('Cambia o publica el estado operativo del bot AEGIS 🪄')
+        .setDescription('👑 [DEV ONLY] Cambia el estado global del bot AEGIS')
         .addStringOption(option =>
             option.setName('opcion')
                 .setDescription('Selecciona el nuevo estado')
@@ -23,6 +23,23 @@ const commandsData = [
                 )
         ),
 
+    // --- DIVERSIÓN ---
+    new SlashCommandBuilder()
+        .setName('8ball')
+        .setDescription('🎱 Hazle una pregunta a la Bola 8 Mágica')
+        .addStringOption(opt => opt.setName('pregunta').setDescription('¿Qué deseas saber?').setRequired(true)),
+
+    new SlashCommandBuilder()
+        .setName('say')
+        .setDescription('💬 Hace que AEGIS repita tu mensaje en un Embed')
+        .addStringOption(opt => opt.setName('mensaje').setDescription('El texto a repetir').setRequired(true)),
+
+    new SlashCommandBuilder()
+        .setName('avatar')
+        .setDescription('🖼️ Muestra y descarga la foto de perfil de un usuario')
+        .addUserOption(opt => opt.setName('usuario').setDescription('Usuario a consultar')),
+
+    // --- MODERACIÓN Y CONFIGURACIÓN ---
     new SlashCommandBuilder()
         .setName('autorole')
         .setDescription('Configura roles automáticos para nuevos usuarios')
