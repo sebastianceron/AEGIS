@@ -13,7 +13,8 @@ const {
     ActionRowBuilder,
     StringSelectMenuBuilder,
     ButtonBuilder,
-    ButtonStyle
+    ButtonStyle,
+    PermissionFlagsBits
 } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
@@ -92,6 +93,15 @@ client.on('guildMemberAdd', async member => {
 
 client.on('messageCreate', async message => {
     if (message.author.bot || !message.guild) return;
+
+    // --- IGNORAR A ADMINISTRADORES Y MODERADORES ---
+    if (message.member && (
+        message.member.permissions.has(PermissionFlagsBits.Administrator) || 
+        message.member.permissions.has(PermissionFlagsBits.ManageMessages)
+    )) {
+        return;
+    }
+
     const contentLower = message.content.toLowerCase();
 
     const isScam = SCAM_KEYWORDS.some(k => contentLower.includes(k)) || (contentLower.includes('http') && contentLower.includes('nitro'));
@@ -182,16 +192,16 @@ client.on('interactionCreate', async interaction => {
                 { label: 'Configuración', description: 'Logs y Autorole', value: 'config', emoji: '⚙️' },
             ]);
 
-        // BOTONES DE ENLACES EXTERNOS CON EL LINK REAL DE SOPORTE
+        // BOTONES DE ENLACES EXTERNOS CON LINK REAL DE VERCEL Y DISCORD
         const buttons = new ActionRowBuilder().addComponents(
             new ButtonBuilder()
                 .setLabel('Servidor de Soporte')
                 .setStyle(ButtonStyle.Link)
                 .setURL('https://discord.gg/Ya9MXjdPDZ'),
             new ButtonBuilder()
-                .setLabel('Sitio Web')
+                .setLabel('Sitio Web Oficial')
                 .setStyle(ButtonStyle.Link)
-                .setURL('https://google.com')
+                .setURL('https://aegisbot.vercel.app/')
         );
 
         const rowSelect = new ActionRowBuilder().addComponents(selectMenu);
