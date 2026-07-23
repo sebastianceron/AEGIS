@@ -23,6 +23,29 @@ const commandsData = [
                 )
         ),
 
+    // --- AUTOMOD CONFIGURACIÓN ---
+    new SlashCommandBuilder()
+        .setName('automod')
+        .setDescription('Activa o desactiva el sistema AutoMod en el servidor')
+        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+        .addSubcommand(sub =>
+            sub.setName('estado')
+                .setDescription('Enciende o apaga el AutoMod')
+                .addStringOption(opt =>
+                    opt.setName('opcion')
+                        .setDescription('Selecciona una opción')
+                        .setRequired(true)
+                        .addChoices(
+                            { name: '🟢 Activar', value: 'activar' },
+                            { name: '🔴 Desactivar', value: 'desactivar' }
+                        )
+                )
+        )
+        .addSubcommand(sub =>
+            sub.setName('ver')
+                .setDescription('Muestra el estado actual del AutoMod')
+        ),
+
     // --- WHITELIST ---
     new SlashCommandBuilder()
         .setName('whitelist')

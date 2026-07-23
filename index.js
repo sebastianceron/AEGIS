@@ -35,13 +35,14 @@ const DB_PATH = path.join(__dirname, 'mod_data.json');
 
 function readDB() {
     if (!fs.existsSync(DB_PATH)) {
-        fs.writeFileSync(DB_PATH, JSON.stringify({ userLogs: {}, logsChannels: {}, autoroles: {}, whitelists: {}, stats: { totalScamsBlocked: 0, totalWarnsGiven: 0 } }, null, 2));
+        fs.writeFileSync(DB_PATH, JSON.stringify({ userLogs: {}, logsChannels: {}, autoroles: {}, whitelists: {}, automodState: {}, stats: { totalScamsBlocked: 0, totalWarnsGiven: 0 } }, null, 2));
     }
     const data = JSON.parse(fs.readFileSync(DB_PATH, 'utf-8'));
     if (!data.userLogs) data.userLogs = {};
     if (!data.logsChannels) data.logsChannels = {}; 
     if (!data.autoroles) data.autoroles = {};
     if (!data.whitelists) data.whitelists = {};
+    if (!data.automodState) data.automodState = {};
     return data;
 }
 
@@ -95,6 +96,11 @@ client.on('guildMemberAdd', async member => {
 client.on('messageCreate', async message => {
     if (message.author.bot || !message.guild) return;
 
+    // --- VERIFICAR SI EL AUTOMOD ESTÁ ACTIVADO EN ESTE SERVIDOR (POR DEFECTO ACTIVO) ---
+    const db = readDB();
+    const isAutoModActive = db.automodState[message.guild.id] !== false; // si no está guardado, por defecto es true
+    if (!isAutoModActive) return;
+
     // --- IGNORAR ADMINISTRADORES Y MODERADORES ---
     if (message.member && (
         message.member.permissions.has(PermissionFlagsBits.Administrator) || 
@@ -104,7 +110,6 @@ client.on('messageCreate', async message => {
     }
 
     // --- IGNORAR USUARIOS EN LA WHITELIST ---
-    const db = readDB();
     const whitelist = db.whitelists[message.guild.id] || [];
     if (whitelist.includes(message.author.id)) return;
 
@@ -165,7 +170,7 @@ client.on('interactionCreate', async interaction => {
                 .setDescription('`/warn [usuario] [razon]` - Advierte a un miembro.\n`/unwarn [usuario]` - Quita la última advertencia.\n`/kick [usuario] [razon]` - Expulsa a un miembro.\n`/ban [usuario] [razon]` - Banea a un usuario.\n`/unban [id]` - Desbanea un usuario por su ID.\n`/clear [cantidad]` - Limpia mensajes del chat.\n`/modlogs [usuario]` - Revisa el expediente.');
         } else if (selected === 'config') {
             embed.setTitle('⚙️ Comandos de Configuración')
-                .setDescription('`/whitelist add` - Agrega un usuario exento de AutoMod.\n`/whitelist remove` - Remueve a un usuario de la whitelist.\n`/whitelist list` - Ver usuarios en whitelist.\n`/autorole add` - Asigna rol automático.\n`/autorole remove` - Desactiva rol automático.\n`/autorole list` - Ver roles automáticos.\n`/logs establecer` - Define el canal de registros.\n`/logs eliminar` - Desactiva el canal de logs.');
+                .setDescription('`/automod estado` - Activa o desactiva la protección automática.\n`/whitelist add` - Agrega un usuario exento de AutoMod.\n`/whitelist remove` - Remueve a un usuario de la whitelist.\n`/whitelist list` - Ver usuarios en whitelist.\n`/autorole add` - Asigna rol automático.\n`/autorole remove` - Desactiva rol automático.\n`/autorole list` - Ver roles automáticos.\n`/logs establecer` - Define el canal de registros.\n`/logs eliminar` - Desactiva el canal de logs.');
         }
 
         return interaction.reply({ embeds: [embed], ephemeral: true });
@@ -180,7 +185,7 @@ client.on('interactionCreate', async interaction => {
             .setTitle('📖 Menú de Ayuda — AEGIS 🪄')
             .setDescription('**Sistema Oficial de AEGIS Bot**\n\nBienvenido al panel de ayuda interactivo. Aquí podrás explorar los comandos y configuraciones de AEGIS de forma rápida y sencilla.\n\nUtiliza el menú desplegable de abajo para navegar entre las diferentes categorías disponibles.\n\n🔗 **Enlaces de Utilidad:**\n¿Quieres llevar tu servidor al siguiente nivel? Mantén tu servidor seguro con nuestro sistema de **moderación y autoroles**.')
             .addFields(
-                { name: '📊 Información General', value: '• **Categorías:** 4\n• **Total de Comandos:** 16', inline: false }
+                { name: '📊 Información General', value: '• **Categorías:** 4\n• **Total de Comandos:** 17', inline: false }
             )
             .setColor('#3b82f6')
             .setThumbnail(client.user.displayAvatarURL())
@@ -195,7 +200,7 @@ client.on('interactionCreate', async interaction => {
                 { label: 'General', description: 'Comandos básicos del bot', value: 'general', emoji: '🌐' },
                 { label: 'Diversión', description: 'Juegos y comandos interactivos', value: 'diversion', emoji: '🎉' },
                 { label: 'Moderación', description: 'Herramientas para moderadores', value: 'moderacion', emoji: '🛡️' },
-                { label: 'Configuración', description: 'Logs, Whitelist y Autorole', value: 'config', emoji: '⚙️' },
+                { label: 'Configuración', description: 'AutoMod, Logs, Whitelist y Autorole', value: 'config', emoji: '⚙️' },
             ]);
 
         // BOTONES DE ENLACES EXTERNOS CON LINK REAL DE VERCEL Y DISCORD
@@ -213,6 +218,43 @@ client.on('interactionCreate', async interaction => {
         const rowSelect = new ActionRowBuilder().addComponents(selectMenu);
 
         return interaction.reply({ embeds: [helpEmbed], components: [rowSelect, buttons] });
+    }
+
+    // --- AUTOMOD COMANDO ---
+    if (commandName === 'automod') {
+        if (!member.permissions.has(PermissionFlagsBits.Administrator)) {
+            return interaction.reply({ content: '❌ Solo Administradores pueden cambiar la configuración de AutoMod.', ephemeral: true });
+        }
+
+        const sub = interaction.options.getSubcommand();
+        const db = readDB();
+
+        if (sub === 'estado') {
+            const opcion = interaction.options.getString('opcion');
+            const estadoBool = opcion === 'activar';
+            db.automodState[guildId] = estadoBool;
+            writeDB(db);
+
+            const statusText = estadoBool ? '🟢 **Activado**' : '🔴 **Desactivado**';
+            const embed = new EmbedBuilder()
+                .setTitle('🛡️ Configuración de AutoMod')
+                .setDescription(`El sistema de protección automática ahora está ${statusText} en este servidor.`)
+                .setColor(estadoBool ? '#10b981' : '#ef4444')
+                .setTimestamp();
+
+            return interaction.reply({ embeds: [embed] });
+        }
+
+        if (sub === 'ver') {
+            const isActivo = db.automodState[guildId] !== false;
+            const statusText = isActivo ? '🟢 **Activado**' : '🔴 **Desactivado**';
+            const embed = new EmbedBuilder()
+                .setTitle('🛡️ Estado del AutoMod')
+                .setDescription(`Estado actual en el servidor: ${statusText}`)
+                .setColor(isActivo ? '#10b981' : '#ef4444');
+
+            return interaction.reply({ embeds: [embed] });
+        }
     }
 
     // --- WHITELIST ---
