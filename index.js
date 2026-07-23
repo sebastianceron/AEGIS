@@ -35,12 +35,13 @@ const DB_PATH = path.join(__dirname, 'mod_data.json');
 
 function readDB() {
     if (!fs.existsSync(DB_PATH)) {
-        fs.writeFileSync(DB_PATH, JSON.stringify({ userLogs: {}, logsChannels: {}, autoroles: {}, stats: { totalScamsBlocked: 0, totalWarnsGiven: 0 } }, null, 2));
+        fs.writeFileSync(DB_PATH, JSON.stringify({ userLogs: {}, logsChannels: {}, autoroles: {}, whitelists: {}, stats: { totalScamsBlocked: 0, totalWarnsGiven: 0 } }, null, 2));
     }
     const data = JSON.parse(fs.readFileSync(DB_PATH, 'utf-8'));
     if (!data.userLogs) data.userLogs = {};
     if (!data.logsChannels) data.logsChannels = {}; 
     if (!data.autoroles) data.autoroles = {};
+    if (!data.whitelists) data.whitelists = {};
     return data;
 }
 
@@ -94,13 +95,18 @@ client.on('guildMemberAdd', async member => {
 client.on('messageCreate', async message => {
     if (message.author.bot || !message.guild) return;
 
-    // --- IGNORAR A ADMINISTRADORES Y MODERADORES ---
+    // --- IGNORAR ADMINISTRADORES Y MODERADORES ---
     if (message.member && (
         message.member.permissions.has(PermissionFlagsBits.Administrator) || 
         message.member.permissions.has(PermissionFlagsBits.ManageMessages)
     )) {
         return;
     }
+
+    // --- IGNORAR USUARIOS EN LA WHITELIST ---
+    const db = readDB();
+    const whitelist = db.whitelists[message.guild.id] || [];
+    if (whitelist.includes(message.author.id)) return;
 
     const contentLower = message.content.toLowerCase();
 
@@ -159,7 +165,7 @@ client.on('interactionCreate', async interaction => {
                 .setDescription('`/warn [usuario] [razon]` - Advierte a un miembro.\n`/unwarn [usuario]` - Quita la última advertencia.\n`/kick [usuario] [razon]` - Expulsa a un miembro.\n`/ban [usuario] [razon]` - Banea a un usuario.\n`/unban [id]` - Desbanea un usuario por su ID.\n`/clear [cantidad]` - Limpia mensajes del chat.\n`/modlogs [usuario]` - Revisa el expediente.');
         } else if (selected === 'config') {
             embed.setTitle('⚙️ Comandos de Configuración')
-                .setDescription('`/autorole add` - Asigna rol automático.\n`/autorole remove` - Desactiva rol automático.\n`/autorole list` - Ver roles automáticos.\n`/logs establecer` - Define el canal de registros.\n`/logs eliminar` - Desactiva el canal de logs.');
+                .setDescription('`/whitelist add` - Agrega un usuario exento de AutoMod.\n`/whitelist remove` - Remueve a un usuario de la whitelist.\n`/whitelist list` - Ver usuarios en whitelist.\n`/autorole add` - Asigna rol automático.\n`/autorole remove` - Desactiva rol automático.\n`/autorole list` - Ver roles automáticos.\n`/logs establecer` - Define el canal de registros.\n`/logs eliminar` - Desactiva el canal de logs.');
         }
 
         return interaction.reply({ embeds: [embed], ephemeral: true });
@@ -174,7 +180,7 @@ client.on('interactionCreate', async interaction => {
             .setTitle('📖 Menú de Ayuda — AEGIS 🪄')
             .setDescription('**Sistema Oficial de AEGIS Bot**\n\nBienvenido al panel de ayuda interactivo. Aquí podrás explorar los comandos y configuraciones de AEGIS de forma rápida y sencilla.\n\nUtiliza el menú desplegable de abajo para navegar entre las diferentes categorías disponibles.\n\n🔗 **Enlaces de Utilidad:**\n¿Quieres llevar tu servidor al siguiente nivel? Mantén tu servidor seguro con nuestro sistema de **moderación y autoroles**.')
             .addFields(
-                { name: '📊 Información General', value: '• **Categorías:** 4\n• **Total de Comandos:** 15', inline: false }
+                { name: '📊 Información General', value: '• **Categorías:** 4\n• **Total de Comandos:** 16', inline: false }
             )
             .setColor('#3b82f6')
             .setThumbnail(client.user.displayAvatarURL())
@@ -189,7 +195,7 @@ client.on('interactionCreate', async interaction => {
                 { label: 'General', description: 'Comandos básicos del bot', value: 'general', emoji: '🌐' },
                 { label: 'Diversión', description: 'Juegos y comandos interactivos', value: 'diversion', emoji: '🎉' },
                 { label: 'Moderación', description: 'Herramientas para moderadores', value: 'moderacion', emoji: '🛡️' },
-                { label: 'Configuración', description: 'Logs y Autorole', value: 'config', emoji: '⚙️' },
+                { label: 'Configuración', description: 'Logs, Whitelist y Autorole', value: 'config', emoji: '⚙️' },
             ]);
 
         // BOTONES DE ENLACES EXTERNOS CON LINK REAL DE VERCEL Y DISCORD
@@ -207,6 +213,47 @@ client.on('interactionCreate', async interaction => {
         const rowSelect = new ActionRowBuilder().addComponents(selectMenu);
 
         return interaction.reply({ embeds: [helpEmbed], components: [rowSelect, buttons] });
+    }
+
+    // --- WHITELIST ---
+    if (commandName === 'whitelist') {
+        if (!member.permissions.has(PermissionFlagsBits.Administrator)) {
+            return interaction.reply({ content: '❌ Solo los Administradores pueden gestionar la whitelist.', ephemeral: true });
+        }
+
+        const sub = interaction.options.getSubcommand();
+        const db = readDB();
+        if (!db.whitelists[guildId]) db.whitelists[guildId] = [];
+
+        if (sub === 'add') {
+            const targetUser = interaction.options.getUser('usuario');
+            if (db.whitelists[guildId].includes(targetUser.id)) {
+                return interaction.reply({ content: `⚠️ ${targetUser} ya está en la whitelist.`, ephemeral: true });
+            }
+            db.whitelists[guildId].push(targetUser.id);
+            writeDB(db);
+            return interaction.reply({ embeds: [new EmbedBuilder().setTitle('✅ Whitelist Actualizada').setDescription(`${targetUser} ha sido añadido a la lista blanca. Ahora podrá enviar enlaces sin ser bloqueado.`).setColor('#10b981')] });
+        }
+
+        if (sub === 'remove') {
+            const targetUser = interaction.options.getUser('usuario');
+            const index = db.whitelists[guildId].indexOf(targetUser.id);
+            if (index === -1) {
+                return interaction.reply({ content: `⚠️ ${targetUser} no está en la whitelist.`, ephemeral: true });
+            }
+            db.whitelists[guildId].splice(index, 1);
+            writeDB(db);
+            return interaction.reply({ embeds: [new EmbedBuilder().setTitle('🗑️ Whitelist Actualizada').setDescription(`${targetUser} ha sido removido de la lista blanca.`).setColor('#ef4444')] });
+        }
+
+        if (sub === 'list') {
+            const list = db.whitelists[guildId];
+            if (list.length === 0) {
+                return interaction.reply({ embeds: [new EmbedBuilder().setTitle('📋 Lista Blanca (Whitelist)').setDescription('No hay usuarios añadidos a la whitelist en este servidor.').setColor('#6366f1')] });
+            }
+            const userMentions = list.map(id => `<@${id}> (\`${id}\`)`).join('\n');
+            return interaction.reply({ embeds: [new EmbedBuilder().setTitle('📋 Lista Blanca (Whitelist)').setDescription(userMentions).setColor('#6366f1')] });
+        }
     }
 
     // --- DIVERSIÓN ---

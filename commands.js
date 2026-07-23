@@ -1,4 +1,4 @@
-const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 
 const commandsData = [
     new SlashCommandBuilder()
@@ -21,6 +21,26 @@ const commandsData = [
                     { name: '🟡 En Mantenimiento', value: 'mantenimiento' },
                     { name: '🔴 Apagado / Fuera de Servicio', value: 'apagado' }
                 )
+        ),
+
+    // --- WHITELIST ---
+    new SlashCommandBuilder()
+        .setName('whitelist')
+        .setDescription('Gestiona la lista de usuarios exentos de la protección AutoMod')
+        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+        .addSubcommand(sub =>
+            sub.setName('add')
+                .setDescription('Añade un usuario a la whitelist')
+                .addUserOption(opt => opt.setName('usuario').setDescription('Usuario a eximir').setRequired(true))
+        )
+        .addSubcommand(sub =>
+            sub.setName('remove')
+                .setDescription('Remueve un usuario de la whitelist')
+                .addUserOption(opt => opt.setName('usuario').setDescription('Usuario a remover').setRequired(true))
+        )
+        .addSubcommand(sub =>
+            sub.setName('list')
+                .setDescription('Muestra los usuarios en la whitelist del servidor')
         ),
 
     // --- DIVERSIÓN ---
