@@ -11,15 +11,15 @@ const commandsData = [
 
     new SlashCommandBuilder()
         .setName('estado')
-        .setDescription('👑 [DEV ONLY] Cambia el estado global del bot AEGIS')
+        .setDescription('👑 [DEV ONLY] Publica el informe oficial de estado global de AEGIS 🪄')
         .addStringOption(option =>
             option.setName('opcion')
-                .setDescription('Selecciona el nuevo estado')
+                .setDescription('Selecciona el nuevo estado del bot')
                 .setRequired(true)
                 .addChoices(
-                    { name: '🟢 Activo / Operativo', value: 'activo' },
-                    { name: '🟡 En Mantenimiento', value: 'mantenimiento' },
-                    { name: '🔴 Apagado / Fuera de Servicio', value: 'apagado' }
+                    { name: '🟢 Activo / Operativo 24/7', value: 'activo' },
+                    { name: '🟡 En Mantenimiento Programado', value: 'mantenimiento' },
+                    { name: '🔴 Fuera de Servicio / Apagado', value: 'apagado' }
                 )
         ),
 

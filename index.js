@@ -96,12 +96,10 @@ client.on('guildMemberAdd', async member => {
 client.on('messageCreate', async message => {
     if (message.author.bot || !message.guild) return;
 
-    // --- VERIFICAR SI EL AUTOMOD ESTÁ ACTIVADO EN ESTE SERVIDOR (POR DEFECTO ACTIVO) ---
     const db = readDB();
-    const isAutoModActive = db.automodState[message.guild.id] !== false; // si no está guardado, por defecto es true
+    const isAutoModActive = db.automodState[message.guild.id] !== false;
     if (!isAutoModActive) return;
 
-    // --- IGNORAR ADMINISTRADORES Y MODERADORES ---
     if (message.member && (
         message.member.permissions.has(PermissionFlagsBits.Administrator) || 
         message.member.permissions.has(PermissionFlagsBits.ManageMessages)
@@ -109,7 +107,6 @@ client.on('messageCreate', async message => {
         return;
     }
 
-    // --- IGNORAR USUARIOS EN LA WHITELIST ---
     const whitelist = db.whitelists[message.guild.id] || [];
     if (whitelist.includes(message.author.id)) return;
 
@@ -153,15 +150,13 @@ client.on('messageCreate', async message => {
     }
 });
 client.on('interactionCreate', async interaction => {
-    // --- MANEJO DEL MENÚ DESPLEGABLE (HELP) ---
     if (interaction.isStringSelectMenu() && interaction.customId === 'help_select') {
         const selected = interaction.values[0];
-
         let embed = new EmbedBuilder().setColor('#6366f1').setTimestamp();
 
         if (selected === 'general') {
             embed.setTitle('🌐 Comandos Generales')
-                .setDescription('`/help` - Abre este panel interactivo.\n`/ping` - Muestra la latencia del bot en ms.\n`/estado` - *(Solo Creador)* Cambia el estado del bot.');
+                .setDescription('`/help` - Abre este panel interactivo.\n`/ping` - Muestra la latencia del bot en ms.\n`/estado` - *(Solo Creador)* Publica el estado global del bot.');
         } else if (selected === 'diversion') {
             embed.setTitle('🎉 Comandos de Diversión')
                 .setDescription('`/8ball [pregunta]` - Consulta la bola 8 mágica.\n`/say [mensaje]` - El bot repite tu mensaje en un Embed.\n`/avatar [usuario]` - Muestra y descarga una foto de perfil.');
@@ -179,7 +174,6 @@ client.on('interactionCreate', async interaction => {
     if (!interaction.isChatInputCommand()) return;
     const { commandName, guildId, member, guild, user } = interaction;
 
-    // --- CÓDIGO DEL /HELP INTERACTIVO ---
     if (commandName === 'help') {
         const helpEmbed = new EmbedBuilder()
             .setTitle('📖 Menú de Ayuda — AEGIS 🪄')
@@ -192,7 +186,6 @@ client.on('interactionCreate', async interaction => {
             .setFooter({ text: `Solicitado por: ${user.username}`, iconURL: user.displayAvatarURL() })
             .setTimestamp();
 
-        // MENÚ DESPLEGABLE DE CATEGORÍAS
         const selectMenu = new StringSelectMenuBuilder()
             .setCustomId('help_select')
             .setPlaceholder('Selecciona una categoría de comandos')
@@ -203,7 +196,6 @@ client.on('interactionCreate', async interaction => {
                 { label: 'Configuración', description: 'AutoMod, Logs, Whitelist y Autorole', value: 'config', emoji: '⚙️' },
             ]);
 
-        // BOTONES DE ENLACES EXTERNOS CON LINK REAL DE VERCEL Y DISCORD
         const buttons = new ActionRowBuilder().addComponents(
             new ButtonBuilder()
                 .setLabel('Servidor de Soporte')
@@ -216,16 +208,74 @@ client.on('interactionCreate', async interaction => {
         );
 
         const rowSelect = new ActionRowBuilder().addComponents(selectMenu);
-
         return interaction.reply({ embeds: [helpEmbed], components: [rowSelect, buttons] });
     }
 
-    // --- AUTOMOD COMANDO ---
+    // --- NUEVO /ESTADO ELEGANTE Y DETALLADO ---
+    if (commandName === 'estado') {
+        if (user.id !== OWNER_ID) {
+            return interaction.reply({ content: '❌ Solo el creador de AEGIS 🪄 puede cambiar y publicar el estado global.', ephemeral: true });
+        }
+
+        const estado = interaction.options.getString('opcion');
+        let embed = new EmbedBuilder().setThumbnail(client.user.displayAvatarURL()).setTimestamp();
+
+        const buttons = new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setLabel('Sitio Web Oficial').setStyle(ButtonStyle.Link).setURL('https://aegisbot.vercel.app/'),
+            new ButtonBuilder().setLabel('Servidor de Soporte').setStyle(ButtonStyle.Link).setURL('https://discord.gg/Ya9MXjdPDZ')
+        );
+
+        if (estado === 'activo') {
+            embed
+                .setTitle('🟢 [ESTADO OFICIAL] AEGIS 🪄 — Totalmente Operativo')
+                .setDescription('El núcleo principal de **AEGIS Bot** se encuentra actualmente online, estable y funcionando al **100% de su capacidad**.\n\nTodos los módulos de protección, moderación y registros están procesando solicitudes sin ningún tipo de retraso.')
+                .addFields(
+                    { name: '⚡ Latencia del Websocket', value: `\`${client.ws.ping} ms\``, inline: true },
+                    { name: '📦 Versión del Sistema', value: '`v1.1.0 (Estable)`', inline: true },
+                    { name: '🛡️ Módulos Activos', value: '• AutoMod Anti-Scam\n• Whitelist Global\n• Logs en Tiempo Real\n• Asignación de Roles', inline: false },
+                    { name: '📢 Mensaje del Creador', value: '💬 *"El bot está listo para proteger tu servidor las 24 horas del día. Si notas alguna falla, contáctanos en el soporte."*' }
+                )
+                .setColor('#10b981')
+                .setFooter({ text: 'AEGIS System Status • Operativo 24/7', iconURL: client.user.displayAvatarURL() });
+
+            return interaction.reply({ embeds: [embed], components: [buttons] });
+        }
+
+        if (estado === 'mantenimiento') {
+            embed
+                .setTitle('🟡 [ESTADO OFICIAL] AEGIS 🪄 — Mantenimiento Programado')
+                .setDescription('Atención: El bot se encuentra actualmente bajo **mantenimiento de rutina y actualización de componentes**.\n\nAlgunos comandos o funciones pueden experimentar breves pausas mientras el equipo aplica las mejoras correspondientes.')
+                .addFields(
+                    { name: '🚧 Estado del Trabajo', value: '`En proceso de actualización...`', inline: true },
+                    { name: '📦 Versión Actual', value: '`v1.1.0`', inline: true },
+                    { name: '⚙️ Funciones Afectadas', value: '• Ejecución de comandos Slash\n• AutoMod (Procesamiento temporal)', inline: false },
+                    { name: '📢 Mensaje del Creador', value: '💬 *"Agradecemos tu paciencia mientras mejoramos el rendimiento y agregamos nuevas funciones al bot."*' }
+                )
+                .setColor('#f59e0b')
+                .setFooter({ text: 'AEGIS System Status • Mantenimiento Activo', iconURL: client.user.displayAvatarURL() });
+
+            return interaction.reply({ embeds: [embed], components: [buttons] });
+        }
+
+        if (estado === 'apagado') {
+            embed
+                .setTitle('🔴 [ESTADO OFICIAL] AEGIS 🪄 — Fuera de Servicio')
+                .setDescription('Aviso Importante: El bot ha sido **puesto fuera de línea temporalmente** por mantenimiento mayor o reinicio de servidores.\n\nDurante este periodo, las funciones automáticas y comandos no estarán disponibles.')
+                .addFields(
+                    { name: '🔴 Estado del Servidor', value: '`Desconectado / Offline`', inline: true },
+                    { name: '📦 Versión', value: '`v1.1.0`', inline: true },
+                    { name: '📢 Mensaje del Creador', value: '💬 *"Estamos trabajando para restablecer el servicio a la brevedad. Te avisaremos apenas volvamos a estar online."*' }
+                )
+                .setColor('#ef4444')
+                .setFooter({ text: 'AEGIS System Status • Fuera de Línea', iconURL: client.user.displayAvatarURL() });
+
+            return interaction.reply({ content: '@everyone', embeds: [embed], components: [buttons] });
+        }
+    }
     if (commandName === 'automod') {
         if (!member.permissions.has(PermissionFlagsBits.Administrator)) {
             return interaction.reply({ content: '❌ Solo Administradores pueden cambiar la configuración de AutoMod.', ephemeral: true });
         }
-
         const sub = interaction.options.getSubcommand();
         const db = readDB();
 
@@ -257,12 +307,10 @@ client.on('interactionCreate', async interaction => {
         }
     }
 
-    // --- WHITELIST ---
     if (commandName === 'whitelist') {
         if (!member.permissions.has(PermissionFlagsBits.Administrator)) {
             return interaction.reply({ content: '❌ Solo los Administradores pueden gestionar la whitelist.', ephemeral: true });
         }
-
         const sub = interaction.options.getSubcommand();
         const db = readDB();
         if (!db.whitelists[guildId]) db.whitelists[guildId] = [];
@@ -298,7 +346,6 @@ client.on('interactionCreate', async interaction => {
         }
     }
 
-    // --- DIVERSIÓN ---
     if (commandName === '8ball') {
         const pregunta = interaction.options.getString('pregunta');
         const respuestas = ['🟢 Totalmente sí.', '🟢 Es muy probable.', '🟡 Tal vez, no estoy seguro.', '🟡 Pregúntame más tarde.', '🔴 Definitivamente no.', '🔴 Mis fuentes dicen que no.', '✨ Las estrellas dicen que sí.', '❌ Ni lo sueñes.'];
@@ -333,38 +380,6 @@ client.on('interactionCreate', async interaction => {
         return interaction.reply({ embeds: [embed] });
     }
 
-    // --- ESTADO (SOLO CREADOR) ---
-    if (commandName === 'estado') {
-        if (user.id !== OWNER_ID) {
-            return interaction.reply({ content: '❌ Solo el desarrollador/creador de AEGIS 🪄 puede cambiar el estado global.', ephemeral: true });
-        }
-
-        const estado = interaction.options.getString('opcion');
-
-        if (estado === 'activo') {
-            const embed = new EmbedBuilder()
-                .setTitle('🟢 AEGIS 🪄 — Sistema Activo')
-                .setDescription('El bot se encuentra **100% operativo**.')
-                .setColor('#10b981').setTimestamp();
-            return interaction.reply({ embeds: [embed] });
-        }
-        if (estado === 'mantenimiento') {
-            const embed = new EmbedBuilder()
-                .setTitle('🟡 AEGIS 🪄 — En Mantenimiento')
-                .setDescription('El bot está pasando por **mantenimiento y actualizaciones**.')
-                .setColor('#f59e0b').setTimestamp();
-            return interaction.reply({ embeds: [embed] });
-        }
-        if (estado === 'apagado') {
-            const embed = new EmbedBuilder()
-                .setTitle('🔴 AEGIS 🪄 — Fuera de Servicio')
-                .setDescription('El bot ha sido **puesto fuera de línea**.')
-                .setColor('#ef4444').setTimestamp();
-            return interaction.reply({ content: '@everyone', embeds: [embed] });
-        }
-    }
-
-    // --- PERMISOS MODERACIÓN ---
     if (commandName !== 'ping' && commandName !== 'help' && !member.permissions.has('ModerateMembers') && !member.permissions.has('Administrator')) {
         return interaction.reply({ content: '❌ No tienes permisos para usar la moderación de AEGIS 🪄.', ephemeral: true });
     }
